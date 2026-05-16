@@ -69,8 +69,22 @@ Use latest stable versions and idiomatic patterns as of the current date. Prefer
 
 ## Commands
 
-None yet — neither the Python agent nor the Next.js frontend has been scaffolded. Once they exist, standard tooling applies:
-- Agent (root or `agent/`): `python -m pytest`, `python -m napg ...` (TBD).
-- Frontend (`frontend/`): `npm run dev` / `build` / `lint` / `test`.
+Agent (`agent/`, `uv` toolchain, Python 3.10+):
+- `uv sync` — install dependencies into `.venv/`
+- `uv run pytest` — run unit tests (coverage report included; gate at 80% from Phase 1)
+- `uv run ruff check .` — lint
+- `uv run ruff format .` — format
+- `uv run python -m napg` — placeholder entry point (Phase 1 wires real behaviour)
 
-Update this section when scaffolding lands.
+Frontend (`frontend/`, npm, Next.js 16 App Router + Tailwind 4):
+- `npm install` — install
+- `npm run dev` — dev server at http://localhost:3000
+- `npm run build` — production build
+- `npm run lint` — eslint
+- `npm run test` — vitest unit tests
+- `npm run test:e2e` — Playwright e2e (run `npx playwright install chromium` once first)
+
+Root helpers:
+- `scripts/start.sh` / `scripts/stop.sh` — run agent + frontend together (requires `.env`)
+
+CI: `.github/workflows/ci.yml` runs both pipelines on every push and PR.

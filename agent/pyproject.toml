@@ -1,0 +1,52 @@
+[project]
+name = "napg"
+version = "0.0.1"
+description = "NetAssure Protocol Guardian — autonomous Protocol Service Assurance agent for Coinbase Base"
+requires-python = ">=3.10"
+readme = "../README.md"
+authors = [
+  { name = "Samuel Apakuki Nayacakalou" },
+]
+dependencies = [
+  "anthropic>=0.40.0",
+  "web3>=7.0.0",
+  "httpx>=0.27.0",
+  "pydantic>=2.7.0",
+  "pydantic-settings>=2.4.0",
+  "python-dotenv>=1.0.0",
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.30.0",
+]
+# coinbase-agentkit pinned in Phase 1 when wallet code lands.
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3.0",
+  "pytest-asyncio>=0.24.0",
+  "pytest-cov>=5.0.0",
+  "ruff>=0.7.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["napg"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "--cov=napg --cov-report=term-missing --cov-fail-under=0"
+# fail-under bumps to 80 in Phase 1 once real code lands.
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"

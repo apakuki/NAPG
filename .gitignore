@@ -1,0 +1,63 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# uv
+.uv/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+.turbo/
+.pnp.*
+*.tsbuildinfo
+next-env.d.ts
+
+# Test / coverage (JS)
+/coverage/
+playwright-report/
+test-results/
+.playwright/
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# NAPG runtime
+audit.db
+audit.db-*
+*.log
+data/
