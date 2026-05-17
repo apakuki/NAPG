@@ -45,6 +45,7 @@ test-results/
 .env.local
 .env.*.local
 !.env.example
+cdp_api_key.json
 
 # IDE
 .vscode/
