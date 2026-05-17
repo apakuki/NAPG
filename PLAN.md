@@ -66,7 +66,7 @@ Lay groundwork so subsequent phases have somewhere to land code.
 - [x] Both Python and Next.js toolchains run green with placeholder code
 - [x] `git clone` -> install -> run on a fresh machine takes under 10 minutes (verified 2026-05-17: ~8s total on a warm-cache laptop)
 - [x] Security baseline checklist complete (Dependabot, secrets scan, dep audit, branch protection) — branch protection formally deferred 2026-05-17 per threat-model accepted risks; all other baseline items in place
-- [ ] User signs off on the scaffolding layout
+- [x] User signs off on the scaffolding layout — Samuel Apakuki Nayacakalou, 2026-05-17 (authorized in chat after Phase 0 checklist closed out)
 
 ### Troubleshooting
 Symptom -> likely cause -> diagnose -> fix.
