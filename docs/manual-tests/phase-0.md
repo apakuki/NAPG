@@ -19,17 +19,17 @@ cd ../frontend && time npm install
 ```
 
 **Expected:**
-- [ ] Clone completes successfully.
-- [ ] `uv sync` reports "Resolved N packages" with no errors; `.venv/` created.
-- [ ] `npm install` reports "added N packages" with no errors.
-- [ ] Total wall time under 10 minutes on a reasonable connection.
+- [x] Clone completes successfully.
+- [x] `uv sync` reports "Resolved N packages" with no errors; `.venv/` created.
+- [x] `npm install` reports "added N packages" with no errors.
+- [x] Total wall time under 10 minutes on a reasonable connection.
 
 **Failure modes:**
 - `uv sync` complains about Python version -> `uv python install 3.12`.
 - `npm install` peer-dep errors -> confirm `node --version` is 20+.
 - Network timeouts -> retry; if persistent, check corporate proxy.
 
-**Result notes:** _record actual time, OS, machine spec_
+**Result notes:** 2026-05-17 (macOS 24.5.0, M-series, warm uv + npm caches): git clone 1.7s, `uv sync` 0.9s (75 packages resolved), `npm install` 5.4s (added ~376 packages). Total ~8s. Comfortably under the 10-minute budget; first-time-ever runs on a cold machine will be slower but still well within budget.
 
 ---
 
@@ -172,16 +172,16 @@ rm .env
 - Visit the Actions tab on GitHub.
 
 **Expected:**
-- [ ] A workflow run named "CI" appears within ~30 seconds.
-- [ ] Both jobs (`agent (python)` and `frontend (next.js)`) report green.
-- [ ] Total run time under 5 minutes.
+- [x] A workflow run named "CI" appears within ~30 seconds.
+- [x] All three jobs (`agent (python)`, `frontend (next.js)`, `security scans`) report green.
+- [x] Total run time under 5 minutes.
 
 **Failure modes:**
 - `uv` step fails -> ensure `astral-sh/setup-uv@v3` is reachable; check the workflow file for typos.
 - `npm ci` fails on lockfile -> regenerate `package-lock.json` locally with `npm install`, commit.
 - Tests pass locally but fail in CI -> usually a Node or Python version mismatch; pin in the workflow.
 
-**Result notes:** _record the workflow run URL_
+**Result notes:** 2026-05-17, commit `b90ef89`: CI run 25976499120 all three jobs green (agent, frontend, security scans).
 
 ---
 

@@ -64,8 +64,8 @@ Lay groundwork so subsequent phases have somewhere to land code.
 
 ### Success criteria
 - [x] Both Python and Next.js toolchains run green with placeholder code
-- [ ] `git clone` -> install -> run on a fresh machine takes under 10 minutes (untested, expected to hold)
-- [ ] Security baseline checklist complete (Dependabot, secrets scan, dep audit, branch protection) — branch protection is the only remaining item
+- [x] `git clone` -> install -> run on a fresh machine takes under 10 minutes (verified 2026-05-17: ~8s total on a warm-cache laptop)
+- [ ] Security baseline checklist complete (Dependabot, secrets scan, dep audit, branch protection) — branch protection blocked on private repo without GitHub Pro; user decision required
 - [ ] User signs off on the scaffolding layout
 
 ### Troubleshooting
