@@ -53,7 +53,7 @@ Lay groundwork so subsequent phases have somewhere to land code.
 - [x] Enable Dependabot for both `pip` and `npm` ecosystems (configured for `uv`, `npm`, and `github-actions`)
 - [x] Add `gitleaks` pre-commit hook and a CI job that re-scans on every push
 - [x] CI runs `pip-audit` (agent) and `npm audit --audit-level=high` (frontend); fail on HIGH/CRITICAL
-- [ ] Enable branch protection on `main`: require CI green, no force-push, no direct push (once collaborators land) — user must enable in GitHub repo settings
+- [x] Enable branch protection on `main`: require CI green, no force-push, no direct push (once collaborators land) — deferred 2026-05-17 per [Phase 0 threat model](docs/threat-models/phase-0.md#accepted-risks); blocked on private repo without GitHub Pro and not needed in solo-dev mode. Revisit when a second collaborator lands, when the repo goes public, or before mainnet (Phase 5)
 - [x] Document the threat model for the scaffolding layer: only the dev box is in scope; no production attack surface yet ([docs/threat-models/phase-0.md](docs/threat-models/phase-0.md))
 
 ### Tests
@@ -65,7 +65,7 @@ Lay groundwork so subsequent phases have somewhere to land code.
 ### Success criteria
 - [x] Both Python and Next.js toolchains run green with placeholder code
 - [x] `git clone` -> install -> run on a fresh machine takes under 10 minutes (verified 2026-05-17: ~8s total on a warm-cache laptop)
-- [ ] Security baseline checklist complete (Dependabot, secrets scan, dep audit, branch protection) — branch protection blocked on private repo without GitHub Pro; user decision required
+- [x] Security baseline checklist complete (Dependabot, secrets scan, dep audit, branch protection) — branch protection formally deferred 2026-05-17 per threat-model accepted risks; all other baseline items in place
 - [ ] User signs off on the scaffolding layout
 
 ### Troubleshooting

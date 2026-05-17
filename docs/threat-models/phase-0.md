@@ -41,7 +41,7 @@ There are no secrets, signing keys, or production credentials in scope this phas
 - No reproducible builds yet (Docker image work lands in Phase 5).
 - No SBOM published yet (will revisit at Phase 5 cutover).
 - Pre-commit hooks are opt-in — contributors must run `pre-commit install` once. The CI gitleaks job is the backstop for anyone who skipped that step.
-- Branch protection on `main` is deferred until a second collaborator is added. Solo-dev mode means the only attacker model is the maintainer's own machine being compromised, which is covered by workstation hygiene.
+- Branch protection on `main` is deferred (decision recorded 2026-05-17). GitHub's branch-protection and ruleset APIs return `403 Upgrade to GitHub Pro or make this repository public` for the current account+visibility combination, and solo-dev mode means the only attacker is the maintainer's own machine — covered by workstation hygiene. Revisit triggers: (a) a second collaborator joins, (b) the repo goes public, (c) GitHub Pro is purchased, or (d) Phase 5 mainnet cutover — whichever comes first.
 
 ## Next phase delta
 
