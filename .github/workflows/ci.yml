@@ -39,6 +39,11 @@ jobs:
       - name: pytest
         run: uv run pytest
 
+      - name: pip-audit
+        run: |
+          uv export --no-emit-project --format requirements-txt --quiet -o /tmp/requirements.txt
+          uvx pip-audit -r /tmp/requirements.txt
+
   frontend:
     name: frontend (next.js)
     runs-on: ubuntu-latest
@@ -66,3 +71,20 @@ jobs:
 
       - name: build
         run: npm run build
+
+      - name: npm audit (high+)
+        run: npm audit --audit-level=high
+
+  security:
+    name: security scans
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: gitleaks scan
+        run: |
+          GITLEAKS_VERSION=8.21.2
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz
+          ./gitleaks detect --source . --no-banner --redact

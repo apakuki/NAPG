@@ -46,15 +46,15 @@ uv run ruff format --check .
 ```
 
 **Expected:**
-- [ ] `pytest` reports `1 passed`.
-- [ ] `ruff check` reports `All checks passed!`.
-- [ ] `ruff format --check` reports `1 file already formatted` (or similar).
+- [x] `pytest` reports `1 passed`.
+- [x] `ruff check` reports `All checks passed!`.
+- [x] `ruff format --check` reports `1 file already formatted` (or similar).
 
 **Failure modes:**
 - `ModuleNotFoundError: napg` -> `uv sync --reinstall`.
 - Ruff format diff -> `uv run ruff format .`, commit.
 
-**Result notes:** _record pytest output line_
+**Result notes:** 2026-05-17 (macOS 24.5.0, Python 3.13.9): `1 passed in 0.01s`; ruff `All checks passed!`; format `4 files already formatted`.
 
 ---
 
@@ -71,15 +71,15 @@ npm run build
 ```
 
 **Expected:**
-- [ ] `npm run lint` exits 0 with no errors.
-- [ ] `npm run test` reports `Tests  1 passed (1)`.
-- [ ] `npm run build` reports `Compiled successfully` and generates static pages.
+- [x] `npm run lint` exits 0 with no errors.
+- [x] `npm run test` reports `Tests  1 passed (1)`.
+- [x] `npm run build` reports `Compiled successfully` and generates static pages.
 
 **Failure modes:**
 - Build complains about missing module -> `rm -rf .next node_modules && npm install && npm run build`.
 - Vitest can't find `@/*` paths -> check `vitest.config.ts` alias matches `tsconfig.json` `paths`.
 
-**Result notes:** _record build size summary_
+**Result notes:** 2026-05-17 (Next.js 16.2.6, Node 26): lint clean; vitest `1 passed`; build `Compiled successfully in 1805ms`, 4 static pages generated (`/`, `/_not-found`).
 
 ---
 
@@ -98,16 +98,18 @@ curl -sS http://localhost:3000 | grep -i "NetAssure Protocol Guardian"
 Then open `http://localhost:3000` in a browser.
 
 **Expected:**
-- [ ] Dev server starts and reports "Ready" within ~5 seconds.
-- [ ] `curl` returns at least one line containing "NetAssure Protocol Guardian".
-- [ ] Browser shows the title, the tagline, and the "Phase 0 — scaffolding" line.
-- [ ] Browser devtools console shows no errors.
+- [x] Dev server starts and reports "Ready" within ~5 seconds.
+- [x] `curl` returns at least one line containing "NetAssure Protocol Guardian".
+- [ ] Browser shows the title, the tagline, and the "Phase 0 — scaffolding" line. _(curl confirmed; browser visual not exercised in this run)_
+- [ ] Browser devtools console shows no errors. _(deferred — needs a human at a browser)_
 
 **Stop:** `Ctrl+C` in the dev-server terminal.
 
 **Failure modes:**
 - Port 3000 in use -> `PORT=3001 npm run dev`, retry on the new port.
 - Page renders default Next.js content -> stale build, `rm -rf .next` and retry.
+
+**Result notes:** 2026-05-17: server ready, `curl` returned 1 line matching "NetAssure Protocol Guardian".
 
 ---
 
@@ -122,10 +124,12 @@ Then open `http://localhost:3000` in a browser.
 ```
 
 **Expected:**
-- [ ] Script exits non-zero with the message `missing .env — copy .env.example and fill in keys`.
+- [x] Script exits non-zero with the message `missing .env — copy .env.example and fill in keys`.
 
 **Failure modes:**
 - Script runs anyway -> the guard is broken; check the `if [ ! -f .env ]` block in `scripts/start.sh`.
+
+**Result notes:** 2026-05-17: exit=1 with the expected message.
 
 ---
 
@@ -143,9 +147,9 @@ git check-ignore -v .env
 ```
 
 **Expected:**
-- [ ] `git status` does not list `.env` as untracked or modified.
-- [ ] `git check-ignore -v .env` prints a line referencing `.gitignore`.
-- [ ] `.env.example` contains entries for: `ANTHROPIC_API_KEY`, `CDP_API_KEY_NAME`, `CDP_API_KEY_PRIVATE_KEY`, `CDP_WALLET_ID`, `BASE_RPC_URL`, `BASE_SEPOLIA_RPC_URL`, `TENDERLY_*`, `ZEROX_API_KEY`, `NEYNAR_API_KEY`, `FARCASTER_SIGNER_UUID`, `NAPG_NETWORK`, `NAPG_AUDIT_DB`.
+- [x] `git status` does not list `.env` as untracked or modified.
+- [x] `git check-ignore -v .env` prints a line referencing `.gitignore`.
+- [x] `.env.example` contains entries for: `ANTHROPIC_API_KEY`, `CDP_API_KEY_NAME`, `CDP_API_KEY_PRIVATE_KEY`, `CDP_WALLET_ID`, `BASE_RPC_URL`, `BASE_SEPOLIA_RPC_URL`, `TENDERLY_*`, `ZEROX_API_KEY`, `NEYNAR_API_KEY`, `FARCASTER_SIGNER_UUID`, `NAPG_NETWORK`, `NAPG_AUDIT_DB`.
 
 **Cleanup:**
 ```bash
@@ -154,6 +158,8 @@ rm .env
 
 **Failure modes:**
 - `.env` appears in `git status` -> `.gitignore` not picking it up; check the file is at repo root and the pattern matches.
+
+**Result notes:** 2026-05-17: `.env` did not appear in `git status`; `git check-ignore -v .env` returned `.gitignore:44:.env`. All required keys present in `.env.example`.
 
 ---
 
@@ -190,11 +196,13 @@ git log -1 --stat
 ```
 
 **Expected:**
-- [ ] First command prints `clean`.
-- [ ] Last-commit stat shows only source, config, and lockfiles; no large binary blobs.
+- [x] First command prints `clean`.
+- [x] Last-commit stat shows only source, config, and lockfiles; no large binary blobs.
 
 **Failure modes:**
 - Forbidden paths appear -> `git rm --cached <path>`, commit; update `.gitignore` if missing.
+
+**Result notes:** 2026-05-17: `clean`; last commit `333f818` (PLAN.md + manual-tests docs only).
 
 ---
 

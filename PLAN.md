@@ -49,23 +49,23 @@ Lay groundwork so subsequent phases have somewhere to land code.
 
 ### Security
 - [x] `.gitignore` excludes `.env`, `.env.local`, `.venv/`, `node_modules/`, `audit.db*`
-- [ ] Add `SECURITY.md` at repo root (disclosure policy + contact)
-- [ ] Enable Dependabot for both `pip` and `npm` ecosystems
-- [ ] Add `gitleaks` pre-commit hook and a CI job that re-scans on every push
-- [ ] CI runs `pip-audit` (agent) and `npm audit --audit-level=high` (frontend); fail on HIGH/CRITICAL
-- [ ] Enable branch protection on `main`: require CI green, no force-push, no direct push (once collaborators land)
-- [ ] Document the threat model for the scaffolding layer: only the dev box is in scope; no production attack surface yet
+- [x] Add `SECURITY.md` at repo root (disclosure policy + contact)
+- [x] Enable Dependabot for both `pip` and `npm` ecosystems (configured for `uv`, `npm`, and `github-actions`)
+- [x] Add `gitleaks` pre-commit hook and a CI job that re-scans on every push
+- [x] CI runs `pip-audit` (agent) and `npm audit --audit-level=high` (frontend); fail on HIGH/CRITICAL
+- [ ] Enable branch protection on `main`: require CI green, no force-push, no direct push (once collaborators land) — user must enable in GitHub repo settings
+- [x] Document the threat model for the scaffolding layer: only the dev box is in scope; no production attack surface yet ([docs/threat-models/phase-0.md](docs/threat-models/phase-0.md))
 
 ### Tests
 - [x] `uv run pytest` runs cleanly (1 smoke test passing)
 - [x] `npm run lint && npm run test && npm run build` all green in `frontend/`
-- [ ] Manual test procedures completed: [docs/manual-tests/phase-0.md](docs/manual-tests/phase-0.md)
+- [x] Manual test procedures completed: [docs/manual-tests/phase-0.md](docs/manual-tests/phase-0.md) (0.2-0.6, 0.8 ticked locally; 0.1 fresh-clone timing and 0.7 CI green pending user push)
 - [ ] Pre-commit or CI hook rejects emoji introduction (deferred — optional)
 
 ### Success criteria
 - [x] Both Python and Next.js toolchains run green with placeholder code
 - [ ] `git clone` -> install -> run on a fresh machine takes under 10 minutes (untested, expected to hold)
-- [ ] Security baseline checklist complete (Dependabot, secrets scan, dep audit, branch protection)
+- [ ] Security baseline checklist complete (Dependabot, secrets scan, dep audit, branch protection) — branch protection is the only remaining item
 - [ ] User signs off on the scaffolding layout
 
 ### Troubleshooting
