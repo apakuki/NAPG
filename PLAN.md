@@ -86,7 +86,7 @@ Symptom -> likely cause -> diagnose -> fix.
 Build the monitoring brain. Heartbeat Base Sepolia RPC, watch Aerodrome and Seamless protocol state, surface a Service Assurance Dashboard. End-state: agent detects a simulated sequencer delay and moves testnet funds to a safe contract.
 
 ### Substeps
-- [ ] Implement Web3.py RPC heartbeat: latency, block height, reorg detection against Base Sepolia
+- [x] Implement Web3.py RPC heartbeat: latency, block height, reorg detection against Base Sepolia
 - [ ] Add AgentiPy-style liquidity probe for Aerodrome pool(s) via the 0x API
 - [ ] Add Seamless lending-market state poller (utilization, oracle freshness)
 - [ ] Define "Service Level Breach" thresholds in a config file (latency, peg deviation, revert-rate, oracle staleness)
@@ -97,8 +97,8 @@ Build the monitoring brain. Heartbeat Base Sepolia RPC, watch Aerodrome and Seam
 - [ ] Simulate a sequencer delay (mock RPC) and verify the migration path runs end-to-end on Sepolia
 
 ### Security
-- [ ] All Web3.py providers use HTTPS only; reject `http://` at config-load time
-- [ ] Validate every RPC response against a Pydantic schema before acting on it (treat upstream as hostile)
+- [x] All Web3.py providers use HTTPS only; reject `http://` at config-load time
+- [x] Validate every RPC response against a Pydantic schema before acting on it (treat upstream as hostile)
 - [ ] Anthropic API key loaded via `pydantic-settings` from `.env`; logged as `***` only; never written to the audit DB
 - [ ] Per-provider rate-limit on RPC calls; circuit-break to a fallback RPC on repeated failure
 - [ ] Testnet-only CDP wallet for Phase 1; cap balance to a known dust amount; document the address in the runbook

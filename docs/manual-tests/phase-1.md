@@ -10,12 +10,20 @@ Prerequisites (once Phase 1 starts): `.env` filled in with `ANTHROPIC_API_KEY`, 
 
 **Goal:** confirm Web3.py is hitting Base Sepolia and reporting latency, block height, and reorg state.
 
-**Steps:** _TODO when `napg.monitor.rpc` lands._
+**Steps:**
+```bash
+# From agent/, with .env populated (BASE_SEPOLIA_RPC_URL=https://...)
+uv run python -m napg heartbeat
+# Run twice ~5s apart and compare block numbers; run again after ~30s.
+```
 
 **Expected:**
-- [ ] Block height advances within ~2 seconds of head.
-- [ ] Reported latency under threshold defined in `config/breaches.toml`.
-- [ ] Reorg counter remains at 0 during a quiet window.
+- [x] Output is JSON with `rpc_url`, `chain_id=84532`, `latency_ms`, `block.number`, `block.hash`, `block.parent_hash`, `reorg_detected=false`.
+- [x] `block.number` advances between consecutive runs (Base Sepolia produces a block roughly every 2s).
+- [x] `latency_ms` is reasonable for the geography of the configured RPC provider (single-digit-hundreds for a regional Alchemy/QuickNode).
+- [x] `reorg_detected` stays `false` across a quiet window.
+
+Verified 2026-05-18 against the rotated Alchemy Base Sepolia endpoint after the prior key was scrubbed and the app recreated.
 
 ---
 
