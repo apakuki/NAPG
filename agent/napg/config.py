@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     network: Network = Field(default="base-sepolia", alias="NAPG_NETWORK")
     base_sepolia_rpc_url: str | None = Field(default=None, alias="BASE_SEPOLIA_RPC_URL")
     base_rpc_url: str | None = Field(default=None, alias="BASE_RPC_URL")
+    zerox_api_key: str | None = Field(default=None, alias="ZEROX_API_KEY")
     audit_db_path: str = Field(default="./audit.db", alias="NAPG_AUDIT_DB")
 
     @field_validator("base_sepolia_rpc_url", "base_rpc_url")
