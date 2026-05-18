@@ -29,13 +29,23 @@ Verified 2026-05-18 against the rotated Alchemy Base Sepolia endpoint after the 
 
 ## 1.2 — Aerodrome USDC/USDbC pool probe
 
-**Goal:** liquidity and pool-state numbers match a manual check on a block explorer.
+**Goal:** quoted USDC/USDbC rate is on-peg and at least one of the routed sources is recognisably an Aerodrome variant when the pool is healthy.
 
-**Steps:** _TODO when `napg.monitor.aerodrome` lands._
+**Steps:**
+```bash
+# From agent/, with .env populated (ZEROX_API_KEY=...)
+uv run python -m napg aerodrome
+# Compare the quoted_rate against a block-explorer read of the Aerodrome
+# USDC/USDbC stable pool reserves (ratio = reserve_USDbC / reserve_USDC).
+```
+
+The probe queries Base mainnet (chainId 8453) regardless of `NAPG_NETWORK`, because Aerodrome only exists on mainnet.
 
 **Expected:**
-- [ ] Reserve numbers within 1% of explorer-reported figures.
-- [ ] Peg-deviation metric reads near zero when the pool is healthy.
+- [ ] Output is JSON with `chain_id=8453`, `liquidity_available=true`, `sell_amount=10000000000` (10k USDC at 6 decimals).
+- [ ] `quoted_rate` within 1% of the explorer-derived rate for the pool.
+- [ ] `peg_deviation_bps` is small (single digits) during a quiet, healthy window.
+- [ ] `sources` contains at least one Aerodrome variant (e.g. `Aerodrome_V1_Stable`) when the pool is the deepest source; if absent, capture the route in the runbook — it means another venue is currently clearing tighter than Aerodrome.
 
 ---
 

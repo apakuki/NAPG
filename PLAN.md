@@ -87,7 +87,7 @@ Build the monitoring brain. Heartbeat Base Sepolia RPC, watch Aerodrome and Seam
 
 ### Substeps
 - [x] Implement Web3.py RPC heartbeat: latency, block height, reorg detection against Base Sepolia
-- [ ] Add AgentiPy-style liquidity probe for Aerodrome pool(s) via the 0x API
+- [x] Add AgentiPy-style liquidity probe for Aerodrome pool(s) via the 0x API
 - [ ] Add Seamless lending-market state poller (utilization, oracle freshness)
 - [ ] Define "Service Level Breach" thresholds in a config file (latency, peg deviation, revert-rate, oracle staleness)
 - [ ] Wire LangChain + Claude (Opus-class via OpenRouter or Anthropic SDK) as the reasoning layer; inputs = protocol state JSON, output = decision intent

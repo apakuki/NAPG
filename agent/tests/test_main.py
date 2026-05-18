@@ -43,3 +43,36 @@ def test_heartbeat_subcommand_runs_one_tick(capsys: pytest.CaptureFixture[str]) 
     heart_cls.assert_called_once_with("https://sepolia.example/rpc")
     fake_heart.tick.assert_called_once()
     assert '{"ok": true}' in capsys.readouterr().out
+
+
+def test_aerodrome_subcommand_runs_one_tick(capsys: pytest.CaptureFixture[str]) -> None:
+    fake_settings = MagicMock()
+    fake_settings.zerox_api_key = "test-key"
+
+    fake_result = MagicMock()
+    fake_result.model_dump_json.return_value = '{"probe": true}'
+
+    fake_monitor = MagicMock()
+    fake_monitor.tick.return_value = fake_result
+
+    with (
+        patch.object(cli, "Settings", return_value=fake_settings),
+        patch.object(cli, "AerodromeMonitor", return_value=fake_monitor) as monitor_cls,
+    ):
+        rc = cli.main(["aerodrome"])
+
+    assert rc == 0
+    monitor_cls.assert_called_once_with(api_key="test-key")
+    fake_monitor.tick.assert_called_once()
+    assert '{"probe": true}' in capsys.readouterr().out
+
+
+def test_aerodrome_subcommand_errors_without_api_key() -> None:
+    fake_settings = MagicMock()
+    fake_settings.zerox_api_key = None
+
+    with (
+        patch.object(cli, "Settings", return_value=fake_settings),
+        pytest.raises(RuntimeError, match="ZEROX_API_KEY"),
+    ):
+        cli.main(["aerodrome"])
