@@ -10,8 +10,8 @@ import pytest
 from napg.monitor.aerodrome import (
     BASE_CHAIN_ID,
     DEFAULT_PROBE_AMOUNT_USDC,
-    USDBC_BASE_MAINNET,
     USDC_BASE_MAINNET,
+    USDT_BASE_MAINNET,
     AerodromeMonitor,
 )
 
@@ -23,7 +23,7 @@ def _client(handler: Callable[[httpx.Request], httpx.Response]) -> httpx.Client:
 def _ok_response(
     sell_amount: int = DEFAULT_PROBE_AMOUNT_USDC,
     buy_amount: int = DEFAULT_PROBE_AMOUNT_USDC,
-    sources: tuple[str, ...] = ("Aerodrome_V1_Stable",),
+    sources: tuple[str, ...] = ("Aerodrome_V3",),
     block_number: int = 12_345_678,
     liquidity_available: bool = True,
 ) -> dict:
@@ -63,13 +63,13 @@ def test_tick_happy_path_perfect_peg():
 
     assert probe.chain_id == BASE_CHAIN_ID
     assert probe.sell_token == USDC_BASE_MAINNET
-    assert probe.buy_token == USDBC_BASE_MAINNET
+    assert probe.buy_token == USDT_BASE_MAINNET
     assert probe.liquidity_available is True
     assert probe.sell_amount == DEFAULT_PROBE_AMOUNT_USDC
     assert probe.buy_amount == DEFAULT_PROBE_AMOUNT_USDC
     assert probe.quoted_rate == pytest.approx(1.0)
     assert probe.peg_deviation_bps == 0
-    assert probe.sources == ("Aerodrome_V1_Stable",)
+    assert probe.sources == ("Aerodrome_V3",)
     assert probe.block_number == 12_345_678
     assert probe.latency_ms >= 0
     assert probe.observed_at > 0
@@ -89,12 +89,12 @@ def test_request_carries_required_headers_and_params():
     assert req.headers["0x-version"] == "v2"
     assert req.url.params["chainId"] == str(BASE_CHAIN_ID)
     assert req.url.params["sellToken"] == USDC_BASE_MAINNET
-    assert req.url.params["buyToken"] == USDBC_BASE_MAINNET
+    assert req.url.params["buyToken"] == USDT_BASE_MAINNET
     assert req.url.params["sellAmount"] == str(DEFAULT_PROBE_AMOUNT_USDC)
 
 
 def test_slight_depeg_reports_bps():
-    # 9_990 USDbC out for 10_000 USDC in → 10 bps depeg.
+    # 9_990 USDT out for 10_000 USDC in → 10 bps depeg.
     body = _ok_response(
         sell_amount=10_000 * 10**6,
         buy_amount=9_990 * 10**6,
@@ -132,14 +132,14 @@ def test_no_liquidity_available():
 
 
 def test_multi_source_route_extracted_in_order():
-    body = _ok_response(sources=("Aerodrome_V1_Stable", "Uniswap_V3", "BaseSwap"))
+    body = _ok_response(sources=("Aerodrome_V3", "Uniswap_V3", "BaseSwap"))
     monitor = AerodromeMonitor(
         api_key="k",
         http=_client(lambda _r: httpx.Response(200, json=body)),
     )
     probe = monitor.tick()
 
-    assert probe.sources == ("Aerodrome_V1_Stable", "Uniswap_V3", "BaseSwap")
+    assert probe.sources == ("Aerodrome_V3", "Uniswap_V3", "BaseSwap")
 
 
 def test_non_200_raises_with_status_and_body():
