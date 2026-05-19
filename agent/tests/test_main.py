@@ -109,3 +109,60 @@ def test_morpho_subcommand_errors_without_mainnet_rpc() -> None:
         pytest.raises(RuntimeError, match="BASE_RPC_URL"),
     ):
         cli.main(["morpho"])
+
+
+def test_audit_verify_subcommand_exits_zero_when_ok(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    fake_settings = MagicMock()
+    fake_settings.audit_hmac_key = "key"
+    fake_settings.audit_db_path = "./audit.db"
+
+    fake_result = MagicMock()
+    fake_result.ok = True
+    fake_result.model_dump_json.return_value = '{"total_rows": 5, "tampered": []}'
+
+    with (
+        patch.object(cli, "Settings", return_value=fake_settings),
+        patch.object(cli, "audit_verify", return_value=fake_result) as verify_fn,
+    ):
+        rc = cli.main(["audit", "verify"])
+
+    assert rc == 0
+    verify_fn.assert_called_once_with("./audit.db", "key")
+    assert "tampered" in capsys.readouterr().out
+
+
+def test_audit_verify_subcommand_exits_nonzero_on_tamper() -> None:
+    fake_settings = MagicMock()
+    fake_settings.audit_hmac_key = "key"
+    fake_settings.audit_db_path = "./audit.db"
+
+    fake_result = MagicMock()
+    fake_result.ok = False
+    fake_result.model_dump_json.return_value = '{"total_rows": 5, "tampered": [3]}'
+
+    with (
+        patch.object(cli, "Settings", return_value=fake_settings),
+        patch.object(cli, "audit_verify", return_value=fake_result),
+    ):
+        rc = cli.main(["audit", "verify"])
+
+    assert rc == 1
+
+
+def test_audit_verify_subcommand_errors_without_key() -> None:
+    fake_settings = MagicMock()
+    fake_settings.audit_hmac_key = None
+
+    with (
+        patch.object(cli, "Settings", return_value=fake_settings),
+        pytest.raises(RuntimeError, match="NAPG_AUDIT_HMAC_KEY"),
+    ):
+        cli.main(["audit", "verify"])
+
+
+def test_audit_without_subcommand_prints_help(capsys: pytest.CaptureFixture[str]) -> None:
+    rc = cli.main(["audit"])
+    assert rc == 0
+    assert "verify" in capsys.readouterr().out

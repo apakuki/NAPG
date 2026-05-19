@@ -93,7 +93,7 @@ Build the monitoring brain. Heartbeat Base Sepolia RPC, watch Aerodrome and Seam
 - [ ] Wire LangChain + Claude (Opus-class via OpenRouter or Anthropic SDK) as the reasoning layer; inputs = protocol state JSON, output = decision intent
 - [ ] Integrate CDP AgentKit for testnet wallet creation and a `move_to_safe_contract` action
 - [ ] Build the Service Assurance Dashboard (Next.js) hitting a FastAPI read endpoint exposed by the agent
-- [ ] Stand up audit-trail writer (append-only JSONL or SQLite; one row per decision: timestamp, inputs, reasoning, action, tx hash)
+- [x] Stand up audit-trail writer — `napg.audit` is the append-only SQLite log (one row per breach for now; decision/action kinds slot in via `record(kind, payload)` once substep 5 lands). Schema-level append-only triggers + per-row HMAC-SHA256 give two-layer tamper evidence. `napg audit verify` CLI verifies the chain end-to-end
 - [ ] Simulate a sequencer delay (mock RPC) and verify the migration path runs end-to-end on Sepolia
 
 ### Security
@@ -102,8 +102,8 @@ Build the monitoring brain. Heartbeat Base Sepolia RPC, watch Aerodrome and Seam
 - [ ] Anthropic API key loaded via `pydantic-settings` from `.env`; logged as `***` only; never written to the audit DB
 - [ ] Per-provider rate-limit on RPC calls; circuit-break to a fallback RPC on repeated failure
 - [ ] Testnet-only CDP wallet for Phase 1; cap balance to a known dust amount; document the address in the runbook
-- [ ] Audit-log writes are wrapped in a single SQLite transaction per decision (no partial rows)
-- [ ] Add an HMAC column on each audit row signed with a separate key (cheap tamper-evidence; key in env, not DB)
+- [x] Audit-log writes are wrapped in a single SQLite transaction per decision (no partial rows) — `record_breaches()` uses `with self._conn:` for all-or-nothing semantics
+- [x] Add an HMAC column on each audit row signed with a separate key (cheap tamper-evidence; key in env, not DB) — `NAPG_AUDIT_HMAC_KEY` env var; key never written to the DB; live-verified in [manual test 1.7](docs/manual-tests/phase-1.md#17--audit-log-integrity)
 - [ ] Threat model: what happens if an RPC lies, if 0x returns crafted data, if Anthropic returns malformed JSON? Document the failure path for each.
 
 ### Tests
