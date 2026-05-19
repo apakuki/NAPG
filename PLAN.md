@@ -90,7 +90,7 @@ Build the monitoring brain. Heartbeat Base Sepolia RPC, watch Aerodrome and Seam
 - [x] Add AgentiPy-style liquidity probe for Aerodrome pool(s) via the 0x API
 - [x] Add Morpho Blue lending-market state poller (utilization) — originally targeted Seamless, repointed 2026-05-19 after Seamless announced wind-down. Oracle-freshness half of this substep deferred to follow-up; see [Resolved decisions](#resolved-decisions-2026-05-16)
 - [x] Define "Service Level Breach" thresholds in a config file — `agent/config/breaches.toml` + `napg.policy.breaches` with `BreachThresholds` model, TOML loader, and `evaluate()` over heartbeat / Aerodrome / Morpho outputs. Covers latency, block age, reorg, peg deviation, liquidity availability, market utilisation, and market accrual staleness. Revert-rate and oracle freshness are deferred until the underlying monitors land
-- [ ] Wire LangChain + Claude (Opus-class via OpenRouter or Anthropic SDK) as the reasoning layer; inputs = protocol state JSON, output = decision intent
+- [x] Wire reasoning layer — `napg.reasoning.Reasoner` calls the Anthropic SDK directly (per [Resolved decisions](#resolved-decisions-2026-05-16); not LangChain). Inputs are the full probe bundle + breach evaluator output; output is a structured `Decision` (intent / rationale / confidence / supporting_breaches) extracted via Anthropic tool-use. System block uses ephemeral prompt caching; every call writes a `decision` row to the append-only audit log including cache_metadata
 - [ ] Integrate CDP AgentKit for testnet wallet creation and a `move_to_safe_contract` action
 - [ ] Build the Service Assurance Dashboard (Next.js) hitting a FastAPI read endpoint exposed by the agent
 - [x] Stand up audit-trail writer — `napg.audit` is the append-only SQLite log (one row per breach for now; decision/action kinds slot in via `record(kind, payload)` once substep 5 lands). Schema-level append-only triggers + per-row HMAC-SHA256 give two-layer tamper evidence. `napg audit verify` CLI verifies the chain end-to-end
@@ -99,7 +99,7 @@ Build the monitoring brain. Heartbeat Base Sepolia RPC, watch Aerodrome and Seam
 ### Security
 - [x] All Web3.py providers use HTTPS only; reject `http://` at config-load time
 - [x] Validate every RPC response against a Pydantic schema before acting on it (treat upstream as hostile)
-- [ ] Anthropic API key loaded via `pydantic-settings` from `.env`; logged as `***` only; never written to the audit DB
+- [x] Anthropic API key loaded via `pydantic-settings` from `.env`; logged as `***` only; never written to the audit DB — `napg.config.Settings.anthropic_api_key`; enforced by `test_audit_row_never_contains_the_api_key` and the equivalent test on the Reasoner
 - [ ] Per-provider rate-limit on RPC calls; circuit-break to a fallback RPC on repeated failure
 - [ ] Testnet-only CDP wallet for Phase 1; cap balance to a known dust amount; document the address in the runbook
 - [x] Audit-log writes are wrapped in a single SQLite transaction per decision (no partial rows) — `record_breaches()` uses `with self._conn:` for all-or-nothing semantics

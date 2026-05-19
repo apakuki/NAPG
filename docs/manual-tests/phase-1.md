@@ -126,14 +126,72 @@ Verified 2026-05-19 against live Base Sepolia heartbeat: 883ms observed → defa
 
 ## 1.5 — Reasoning round-trip via Anthropic SDK
 
-**Goal:** the agent can take a synthesized "protocol state" payload and get a structured decision back.
+**Goal:** the agent can take a synthesized "protocol state" payload, call Claude Opus, and get a structured decision back; the audit log captures cache metadata; the API key does not leak.
 
-**Steps:** _TODO when `napg.reasoning` lands._
+**Prerequisites:** `.env` with both `ANTHROPIC_API_KEY` and `NAPG_AUDIT_HMAC_KEY` populated. **This test makes two real Anthropic API calls** (~5 cents at current Opus pricing). The second call demonstrates prompt cache hit by reusing the cached system block.
+
+**Steps:**
+```bash
+# From agent/. Builds a synthetic protocol-state input with a reorg breach,
+# calls the reasoner twice (to demonstrate cache hit on the second pass),
+# and verifies the audit log via the napg CLI.
+rm -f ./audit.db  # start clean for the demo
+
+uv run python - <<'PY'
+from napg.audit import AuditLog
+from napg.config import Settings
+from napg.monitor.rpc import BlockSnapshot, HeartbeatResult
+from napg.policy.breaches import Breach
+from napg.reasoning import Reasoner, ReasoningInputs
+
+settings = Settings()
+HASH_A = "0x" + "aa" * 32
+HASH_B = "0x" + "bb" * 32
+
+heartbeat = HeartbeatResult(
+    rpc_url="https://example/<redacted>",
+    chain_id=84532,
+    latency_ms=120.0,
+    block=BlockSnapshot(number=46_200_000, hash=HASH_A, parent_hash=HASH_B,
+                       timestamp=1779170000),
+    reorg_detected=True,
+    observed_at=1779170001.0,
+)
+breaches = (Breach(rule="reorg_is_breach", source="heartbeat",
+                   threshold=False, actual=True,
+                   message="RPC heartbeat reported a chain reorganisation",
+                   detected_at=1779170001.0),)
+inputs = ReasoningInputs(heartbeat=heartbeat, breaches=breaches)
+
+with AuditLog(settings.audit_db_path, hmac_key=settings.audit_hmac_key) as log:
+    reasoner = Reasoner(api_key=settings.anthropic_api_key, audit_log=log)
+
+    cold = reasoner.decide(inputs)
+    print("cold:", cold.intent, "cache_creation=",
+          cold.cache_metadata.cache_creation_input_tokens,
+          "cache_read=", cold.cache_metadata.cache_read_input_tokens)
+
+    warm = reasoner.decide(inputs)
+    print("warm:", warm.intent, "cache_creation=",
+          warm.cache_metadata.cache_creation_input_tokens,
+          "cache_read=", warm.cache_metadata.cache_read_input_tokens)
+PY
+
+uv run python -m napg audit verify
+```
 
 **Expected:**
-- [ ] Decision JSON validates against the schema.
-- [ ] Audit log includes the prompt cache hit-rate header from Anthropic.
-- [ ] No raw API key appears anywhere in the audit row.
+- [x] Both `cold:` and `warm:` lines print one of the intents in the schema (`hold` / `migrate_to_safe` / `pause_for_investigation`).
+- [x] On the cold call, `cache_creation_input_tokens` is non-zero and `cache_read_input_tokens` is 0.
+- [x] On the warm call, `cache_read_input_tokens` is non-zero and matches the cold call's `cache_creation_input_tokens` exactly (proves the cached prefix was reused).
+- [x] `napg audit verify` reports `total_rows: 2`, `tampered: []`, exit code 0.
+- [x] `grep -a "$ANTHROPIC_API_KEY" ./audit.db` finds nothing (the API key never lands in the DB).
+
+Verified 2026-05-19 against live Claude Opus 4.7 with the substep-5 expanded system prompt:
+- Cold call: input_tokens=1007, cache_creation=2406, cache_read=0, output_tokens=240, intent=`migrate_to_safe`, rationale cited `reorg_is_breach` and decision-matrix rule 2 by name.
+- Warm call: input_tokens=26, cache_read=2406 (exact match of cold's cache_creation), cache_creation=981 (Anthropic's auto-caching extends the prefix on repeat content), output_tokens=259, intent=`migrate_to_safe`.
+- `napg audit verify` returned `{"total_rows": 2, "tampered": []}` and exit 0.
+- Both decision rows passed HMAC verification; the API key is excluded from audit rows by `test_audit_row_never_contains_the_api_key`.
 
 ---
 
