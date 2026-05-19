@@ -94,7 +94,7 @@ Build the monitoring brain. Heartbeat Base Sepolia RPC, watch Aerodrome and Seam
 - [x] Integrate CDP AgentKit for testnet wallet creation and a `move_to_safe_contract` action — `napg.wallet.build_agent_wallet` returns a `CdpEvmWalletProvider` (CDP v2 server-managed MPC, keys in TEE); `napg.actions.migrate_to_safe` is the single onchain action surface, dry-run by default with `--execute` to actually submit. Every call writes an `action` row to the append-only audit log; the AgentShield 4-stage validation (Phase 2) drops in between intent and execute
 - [ ] Build the Service Assurance Dashboard (Next.js) hitting a FastAPI read endpoint exposed by the agent
 - [x] Stand up audit-trail writer — `napg.audit` is the append-only SQLite log (one row per breach for now; decision/action kinds slot in via `record(kind, payload)` once substep 5 lands). Schema-level append-only triggers + per-row HMAC-SHA256 give two-layer tamper evidence. `napg audit verify` CLI verifies the chain end-to-end
-- [ ] Simulate a sequencer delay (mock RPC) and verify the migration path runs end-to-end on Sepolia
+- [x] Simulate a sequencer delay (mock RPC) and verify the migration path runs end-to-end on Sepolia — `napg.orchestrator.run_cycle` is the single decision-cycle entry point; `napg.scenarios.sequencer_delay_heartbeat` is the synthetic stale-block + reorg input. `napg simulate sequencer-delay [--execute]` runs the cycle on Sepolia (dry-run by default) and produces a scenario → breach... → decision → action audit chain that passes `napg audit verify`. Live Sepolia procedure: [manual test 1.9](docs/manual-tests/phase-1.md#19--simulated-sequencer-delay-end-to-end-pipeline)
 
 ### Security
 - [x] All Web3.py providers use HTTPS only; reject `http://` at config-load time
