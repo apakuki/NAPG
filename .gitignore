@@ -46,6 +46,7 @@ test-results/
 .env.*.local
 !.env.example
 cdp_api_key.json
+cdp_wallet_secret.txt
 
 # IDE
 .vscode/
