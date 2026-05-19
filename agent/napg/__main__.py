@@ -6,6 +6,7 @@ import argparse
 import sys
 
 from napg import __version__
+from napg.audit import verify as audit_verify
 from napg.config import Settings
 from napg.monitor.aerodrome import AerodromeMonitor
 from napg.monitor.morpho import MorphoMonitor
@@ -44,6 +45,17 @@ def _cmd_morpho() -> int:
     return 0
 
 
+def _cmd_audit_verify() -> int:
+    settings = Settings()
+    if not settings.audit_hmac_key:
+        raise RuntimeError(
+            "NAPG_AUDIT_HMAC_KEY is not set; verification cannot run without the HMAC key."
+        )
+    result = audit_verify(settings.audit_db_path, settings.audit_hmac_key)
+    print(result.model_dump_json(indent=2))
+    return 0 if result.ok else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="napg", description="NetAssure Protocol Guardian")
     parser.add_argument("--version", action="version", version=f"napg {__version__}")
@@ -52,6 +64,10 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("aerodrome", help="probe Aerodrome USDC/USDT liquidity via the 0x API")
     sub.add_parser("morpho", help="poll Morpho Blue lending markets on Base mainnet")
 
+    audit = sub.add_parser("audit", help="audit-log tools")
+    audit_sub = audit.add_subparsers(dest="audit_command")
+    audit_sub.add_parser("verify", help="recompute every row HMAC and report tamper")
+
     args = parser.parse_args(argv)
     if args.command == "heartbeat":
         return _cmd_heartbeat()
@@ -59,6 +75,11 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_aerodrome()
     if args.command == "morpho":
         return _cmd_morpho()
+    if args.command == "audit":
+        if args.audit_command == "verify":
+            return _cmd_audit_verify()
+        audit.print_help()
+        return 0
 
     parser.print_help()
     return 0

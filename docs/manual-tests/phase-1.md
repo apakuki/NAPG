@@ -152,17 +152,49 @@ Verified 2026-05-19 against live Base Sepolia heartbeat: 883ms observed → defa
 
 ## 1.7 — Audit log integrity
 
-**Goal:** HMAC tamper-evidence works.
+**Goal:** demonstrate the two-layer defence — the append-only triggers reject the naive tamper, and after the triggers are dropped the row-level HMAC still detects the change.
+
+**Prerequisites:** `.env` populated with `NAPG_AUDIT_HMAC_KEY` (`python -c "import secrets; print(secrets.token_hex(32))"` for a fresh one). The DB lives at `NAPG_AUDIT_DB` (default `./audit.db`).
 
 **Steps:**
 ```bash
-# TODO once schema is final:
-# sqlite3 audit.db "UPDATE decisions SET inputs='tampered' WHERE id=1"
-# uv run python -m napg.audit verify
+# From agent/. Writes a couple of breach rows, then probes both defences.
+uv run python - <<'PY'
+import os
+from pathlib import Path
+
+from napg.audit import AuditLog
+from napg.config import Settings
+from napg.policy.breaches import Breach
+
+settings = Settings()
+db = Path(settings.audit_db_path)
+db.unlink(missing_ok=True)  # start clean for the demo
+
+with AuditLog(db, hmac_key=settings.audit_hmac_key) as log:
+    log.record_breaches([
+        Breach(rule="rpc_latency_ms_max", source="heartbeat",
+               threshold=2000, actual=3500.0,
+               message="RPC latency 3500 ms exceeds threshold 2000 ms",
+               detected_at=1716000010.0),
+    ])
+print("wrote breach to", db)
+PY
+
+# Try the naive tamper — expect SQLite to reject it.
+sqlite3 ./audit.db "UPDATE audit_log SET payload='tampered' WHERE id=1"
+
+# Drop the triggers, tamper, then verify — verify must detect it.
+sqlite3 ./audit.db "DROP TRIGGER audit_log_no_update; UPDATE audit_log SET payload='tampered' WHERE id=1"
+uv run python -m napg audit verify
+echo "exit code: $?"
 ```
 
 **Expected:**
-- [ ] Verify command flags row 1 as tampered and exits non-zero.
+- [x] The first `sqlite3 ... UPDATE` exits non-zero with an error containing `audit_log is append-only`.
+- [x] After dropping the trigger and tampering, `napg audit verify` prints a JSON report with `total_rows: 1`, `tampered: [1]`, and the process exits with code 1.
+
+Verified 2026-05-19: naive `UPDATE` errored with `audit_log is append-only` (exit 19); after `DROP TRIGGER`, the update succeeded but `napg audit verify` returned `{"total_rows": 1, "tampered": [1]}` and exited with code 1.
 
 ---
 
