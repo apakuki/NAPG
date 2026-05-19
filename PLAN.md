@@ -89,7 +89,7 @@ Build the monitoring brain. Heartbeat Base Sepolia RPC, watch Aerodrome and Seam
 - [x] Implement Web3.py RPC heartbeat: latency, block height, reorg detection against Base Sepolia
 - [x] Add AgentiPy-style liquidity probe for Aerodrome pool(s) via the 0x API
 - [x] Add Morpho Blue lending-market state poller (utilization) — originally targeted Seamless, repointed 2026-05-19 after Seamless announced wind-down. Oracle-freshness half of this substep deferred to follow-up; see [Resolved decisions](#resolved-decisions-2026-05-16)
-- [ ] Define "Service Level Breach" thresholds in a config file (latency, peg deviation, revert-rate, oracle staleness)
+- [x] Define "Service Level Breach" thresholds in a config file — `agent/config/breaches.toml` + `napg.policy.breaches` with `BreachThresholds` model, TOML loader, and `evaluate()` over heartbeat / Aerodrome / Morpho outputs. Covers latency, block age, reorg, peg deviation, liquidity availability, market utilisation, and market accrual staleness. Revert-rate and oracle freshness are deferred until the underlying monitors land
 - [ ] Wire LangChain + Claude (Opus-class via OpenRouter or Anthropic SDK) as the reasoning layer; inputs = protocol state JSON, output = decision intent
 - [ ] Integrate CDP AgentKit for testnet wallet creation and a `move_to_safe_contract` action
 - [ ] Build the Service Assurance Dashboard (Next.js) hitting a FastAPI read endpoint exposed by the agent
