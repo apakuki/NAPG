@@ -17,8 +17,8 @@ dependencies = [
   "fastapi>=0.115.0",
   "uvicorn[standard]>=0.30.0",
   "tomli>=2.0.0 ; python_version < '3.11'",
+  "coinbase-agentkit>=0.2.0",
 ]
-# coinbase-agentkit pinned in Phase 1 when wallet code lands.
 
 [dependency-groups]
 dev = [

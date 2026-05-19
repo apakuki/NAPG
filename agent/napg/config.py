@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     base_rpc_url: str | None = Field(default=None, alias="BASE_RPC_URL")
     zerox_api_key: str | None = Field(default=None, alias="ZEROX_API_KEY")
     anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
+    cdp_api_key_name: str | None = Field(default=None, alias="CDP_API_KEY_NAME")
+    cdp_api_key_private_key: str | None = Field(default=None, alias="CDP_API_KEY_PRIVATE_KEY")
+    cdp_wallet_secret: str | None = Field(default=None, alias="CDP_WALLET_SECRET")
+    cdp_agent_address: str | None = Field(default=None, alias="CDP_AGENT_ADDRESS")
+    safe_contract_address: str | None = Field(default=None, alias="NAPG_SAFE_CONTRACT_ADDRESS")
     audit_db_path: str = Field(default="./audit.db", alias="NAPG_AUDIT_DB")
     audit_hmac_key: str | None = Field(default=None, alias="NAPG_AUDIT_HMAC_KEY")
 

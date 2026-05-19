@@ -166,3 +166,97 @@ def test_audit_without_subcommand_prints_help(capsys: pytest.CaptureFixture[str]
     rc = cli.main(["audit"])
     assert rc == 0
     assert "verify" in capsys.readouterr().out
+
+
+def test_wallet_show_subcommand_prints_address_balance_network(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    fake_wallet = MagicMock()
+    fake_wallet.get_address.return_value = "0x" + "11" * 20
+    fake_wallet.get_balance.return_value = 12345
+    fake_wallet.get_network.return_value = MagicMock(network_id="base-sepolia")
+
+    with patch.object(cli, "build_agent_wallet", return_value=fake_wallet):
+        rc = cli.main(["wallet", "show"])
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "0x" + "11" * 20 in out
+    assert "base-sepolia" in out
+    assert "12345" in out
+
+
+def test_wallet_without_subcommand_prints_help(capsys: pytest.CaptureFixture[str]) -> None:
+    rc = cli.main(["wallet"])
+    assert rc == 0
+    assert "show" in capsys.readouterr().out
+
+
+def test_migrate_dry_run_writes_audit_and_returns_zero(
+    capsys: pytest.CaptureFixture[str], tmp_path
+) -> None:
+    fake_settings = MagicMock()
+    fake_settings.safe_contract_address = "0x" + "22" * 20
+    fake_settings.audit_hmac_key = "test-key"
+    fake_settings.audit_db_path = str(tmp_path / "audit.db")
+
+    fake_wallet = MagicMock()
+    fake_wallet.get_address.return_value = "0x" + "11" * 20
+
+    fake_record = MagicMock()
+    fake_record.model_dump_json.return_value = '{"dry_run": true}'
+
+    with (
+        patch.object(cli, "Settings", return_value=fake_settings),
+        patch.object(cli, "build_agent_wallet", return_value=fake_wallet),
+        patch.object(cli, "migrate_to_safe", return_value=fake_record) as action,
+    ):
+        rc = cli.main(["migrate", "--amount-eth", "0.001"])
+
+    assert rc == 0
+    _, kwargs = action.call_args
+    assert kwargs["dry_run"] is True
+    assert '"dry_run": true' in capsys.readouterr().out
+
+
+def test_migrate_execute_flips_dry_run_off(tmp_path) -> None:
+    fake_settings = MagicMock()
+    fake_settings.safe_contract_address = "0x" + "22" * 20
+    fake_settings.audit_hmac_key = "test-key"
+    fake_settings.audit_db_path = str(tmp_path / "audit.db")
+
+    fake_record = MagicMock()
+    fake_record.model_dump_json.return_value = "{}"
+
+    with (
+        patch.object(cli, "Settings", return_value=fake_settings),
+        patch.object(cli, "build_agent_wallet", return_value=MagicMock()),
+        patch.object(cli, "migrate_to_safe", return_value=fake_record) as action,
+    ):
+        cli.main(["migrate", "--amount-eth", "0.001", "--execute"])
+
+    _, kwargs = action.call_args
+    assert kwargs["dry_run"] is False
+
+
+def test_migrate_requires_safe_address() -> None:
+    fake_settings = MagicMock()
+    fake_settings.safe_contract_address = None
+
+    with (
+        patch.object(cli, "Settings", return_value=fake_settings),
+        pytest.raises(RuntimeError, match="NAPG_SAFE_CONTRACT_ADDRESS"),
+    ):
+        cli.main(["migrate", "--amount-eth", "0.001"])
+
+
+def test_migrate_requires_audit_hmac_key() -> None:
+    fake_settings = MagicMock()
+    fake_settings.safe_contract_address = "0x" + "22" * 20
+    fake_settings.audit_hmac_key = None
+
+    with (
+        patch.object(cli, "Settings", return_value=fake_settings),
+        pytest.raises(RuntimeError, match="NAPG_AUDIT_HMAC_KEY"),
+    ):
+        cli.main(["migrate", "--amount-eth", "0.001"])

@@ -1,0 +1,148 @@
+"""Unit tests for napg.actions — wallet provider is mocked end-to-end."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+
+import pytest
+
+from napg.actions import ActionRecord, migrate_to_safe
+from napg.audit import AuditLog, verify
+
+HMAC_KEY = "test-hmac-key-do-not-use-in-prod"
+AGENT = "0x" + "11" * 20
+SAFE = "0x" + "22" * 20
+
+
+def _wallet(tx_hash: str = "0x" + "ab" * 32, block_number: int = 46_300_000) -> MagicMock:
+    wallet = MagicMock()
+    wallet.get_address.return_value = AGENT
+    wallet.native_transfer.return_value = tx_hash
+    wallet.wait_for_transaction_receipt.return_value = SimpleNamespace(
+        block_number=block_number,
+        status=1,
+    )
+    return wallet
+
+
+def test_dry_run_does_not_submit_tx() -> None:
+    wallet = _wallet()
+
+    record = migrate_to_safe(wallet, SAFE, 1_000_000)
+
+    assert record.dry_run is True
+    assert record.tx_hash is None
+    assert record.block_number is None
+    assert record.from_address == AGENT
+    assert record.to_address == SAFE
+    assert record.value_wei == 1_000_000
+    wallet.native_transfer.assert_not_called()
+    wallet.wait_for_transaction_receipt.assert_not_called()
+
+
+def test_execute_path_submits_and_captures_receipt() -> None:
+    wallet = _wallet(tx_hash="0x" + "cd" * 32, block_number=46_400_000)
+
+    record = migrate_to_safe(wallet, SAFE, 5_000, dry_run=False)
+
+    wallet.native_transfer.assert_called_once_with(to=SAFE, value="5000")
+    wallet.wait_for_transaction_receipt.assert_called_once_with("0x" + "cd" * 32)
+    assert record.dry_run is False
+    assert record.tx_hash == "0x" + "cd" * 32
+    assert record.block_number == 46_400_000
+    assert record.status == "success"
+
+
+def test_receipt_status_zero_reports_failure() -> None:
+    wallet = _wallet()
+    wallet.wait_for_transaction_receipt.return_value = SimpleNamespace(
+        block_number=1, status=0
+    )
+
+    record = migrate_to_safe(wallet, SAFE, 1, dry_run=False)
+    assert record.status == "failure"
+
+
+def test_receipt_camelcase_field_supported() -> None:
+    """Some Web3-style receipts use blockNumber; accept both."""
+    wallet = _wallet()
+    wallet.wait_for_transaction_receipt.return_value = SimpleNamespace(
+        blockNumber=99, status=1
+    )
+
+    record = migrate_to_safe(wallet, SAFE, 1, dry_run=False)
+    assert record.block_number == 99
+
+
+def test_invalid_safe_address_rejected() -> None:
+    wallet = _wallet()
+    with pytest.raises(ValueError, match="safe_address"):
+        migrate_to_safe(wallet, "not-an-address", 100)
+
+
+def test_negative_value_rejected() -> None:
+    wallet = _wallet()
+    with pytest.raises(ValueError, match="value_wei"):
+        migrate_to_safe(wallet, SAFE, -1)
+
+
+def test_dry_run_writes_audit_row(tmp_path: Path) -> None:
+    db = tmp_path / "audit.db"
+    wallet = _wallet()
+
+    with AuditLog(db, hmac_key=HMAC_KEY) as log:
+        migrate_to_safe(wallet, SAFE, 12_345, audit_log=log)
+        rows = list(log.iter_rows())
+
+    assert len(rows) == 1
+    assert rows[0].kind == "action"
+    assert rows[0].payload["dry_run"] is True
+    assert rows[0].payload["value_wei"] == 12_345
+    assert rows[0].payload["tx_hash"] is None
+
+
+def test_executed_action_writes_audit_row(tmp_path: Path) -> None:
+    db = tmp_path / "audit.db"
+    wallet = _wallet(tx_hash="0x" + "ef" * 32, block_number=46_500_000)
+
+    with AuditLog(db, hmac_key=HMAC_KEY) as log:
+        record = migrate_to_safe(wallet, SAFE, 100, dry_run=False, audit_log=log)
+        rows = list(log.iter_rows())
+
+    assert len(rows) == 1
+    payload = rows[0].payload
+    assert payload["dry_run"] is False
+    assert payload["tx_hash"] == "0x" + "ef" * 32
+    assert payload["block_number"] == 46_500_000
+    assert payload["status"] == "success"
+    assert record.tx_hash == payload["tx_hash"]
+
+
+def test_action_row_passes_hmac_verification(tmp_path: Path) -> None:
+    db = tmp_path / "audit.db"
+    wallet = _wallet()
+
+    with AuditLog(db, hmac_key=HMAC_KEY) as log:
+        migrate_to_safe(wallet, SAFE, 1, dry_run=False, audit_log=log)
+
+    result = verify(db, HMAC_KEY)
+    assert result.ok is True
+
+
+def test_action_record_is_json_safe() -> None:
+    record = ActionRecord(
+        action="migrate_to_safe",
+        dry_run=False,
+        from_address=AGENT,
+        to_address=SAFE,
+        value_wei=42,
+        tx_hash="0x" + "00" * 32,
+        block_number=1,
+        status="success",
+        observed_at=1.0,
+    )
+    dumped = record.model_dump_json()
+    assert "migrate_to_safe" in dumped
+    assert "0x" + "00" * 32 in dumped
