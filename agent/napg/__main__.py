@@ -14,6 +14,10 @@ from napg.config import Settings
 from napg.monitor.aerodrome import AerodromeMonitor
 from napg.monitor.morpho import MorphoMonitor
 from napg.monitor.rpc import RpcHeartbeat
+from napg.orchestrator import run_cycle
+from napg.policy.breaches import load_thresholds
+from napg.reasoning import Reasoner
+from napg.scenarios import sequencer_delay_heartbeat
 from napg.wallet import build_agent_wallet
 
 
@@ -107,6 +111,79 @@ def _cmd_migrate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_simulate_sequencer_delay(args: argparse.Namespace) -> int:
+    """Run one orchestrator cycle on a synthesized sequencer-delay heartbeat.
+
+    Lives in the CLI because every dependency it touches (Anthropic SDK,
+    CDP wallet, audit DB) is already wired by the surrounding commands.
+    The scenario itself is a pure function in `napg.scenarios`.
+    """
+    settings = Settings()
+    if not settings.anthropic_api_key:
+        raise RuntimeError("ANTHROPIC_API_KEY is not set; reasoning cannot run.")
+    if not settings.audit_hmac_key:
+        raise RuntimeError(
+            "NAPG_AUDIT_HMAC_KEY is not set; refusing to act without audit logging."
+        )
+    if not settings.safe_contract_address:
+        raise RuntimeError("NAPG_SAFE_CONTRACT_ADDRESS is not set; migration target unknown.")
+
+    heartbeat = sequencer_delay_heartbeat(
+        stale_seconds=args.stale_seconds,
+        include_reorg=not args.no_reorg,
+    )
+    value_wei = int(float(args.amount_eth) * 10**18)
+    thresholds = load_thresholds()
+
+    with AuditLog(settings.audit_db_path, hmac_key=settings.audit_hmac_key) as log:
+        log.record(
+            "scenario",
+            {
+                "name": "sequencer_delay",
+                "stale_seconds": args.stale_seconds,
+                "include_reorg": not args.no_reorg,
+                "execute": bool(args.execute),
+            },
+        )
+        wallet = build_agent_wallet(settings) if args.execute else _DryRunWallet(settings)
+        reasoner = Reasoner(api_key=settings.anthropic_api_key, audit_log=log)
+        report = run_cycle(
+            reasoner=reasoner,
+            audit_log=log,
+            thresholds=thresholds,
+            heartbeat=heartbeat,
+            wallet=wallet,
+            safe_address=settings.safe_contract_address,
+            value_wei=value_wei,
+            dry_run=not args.execute,
+        )
+
+    print(report.model_dump_json(indent=2))
+    return 0
+
+
+class _DryRunWallet:
+    """Stand-in wallet used when the simulator runs without --execute.
+
+    `migrate_to_safe(dry_run=True)` never calls `native_transfer` or
+    `wait_for_transaction_receipt`, so a real CDP wallet (with its API
+    round-trips and gas budget) is unnecessary for the simulation path.
+    Only `get_address` is invoked.
+    """
+
+    def __init__(self, settings: Settings) -> None:
+        self._address = settings.cdp_agent_address or ("0x" + "00" * 20)
+
+    def get_address(self) -> str:
+        return self._address
+
+    def native_transfer(self, to: str, value: str) -> str:  # pragma: no cover - dry-run guard
+        raise RuntimeError("_DryRunWallet cannot submit transactions; rerun with --execute")
+
+    def wait_for_transaction_receipt(self, tx_hash: str) -> object:  # pragma: no cover
+        raise RuntimeError("_DryRunWallet has no receipts; rerun with --execute")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="napg", description="NetAssure Protocol Guardian")
     parser.add_argument("--version", action="version", version=f"napg {__version__}")
@@ -143,6 +220,37 @@ def main(argv: list[str] | None = None) -> int:
         help="actually submit the transaction (default: dry-run only)",
     )
 
+    simulate = sub.add_parser(
+        "simulate",
+        help="run an end-to-end pipeline cycle on a synthesized scenario",
+    )
+    simulate_sub = simulate.add_subparsers(dest="scenario")
+    seq_delay = simulate_sub.add_parser(
+        "sequencer-delay",
+        help="synthesize a stale-block + reorg heartbeat and run one cycle",
+    )
+    seq_delay.add_argument(
+        "--stale-seconds",
+        type=int,
+        default=600,
+        help="how many seconds old the synthetic block should be (default: 600)",
+    )
+    seq_delay.add_argument(
+        "--no-reorg",
+        action="store_true",
+        help="omit the reorg flag (default: include it)",
+    )
+    seq_delay.add_argument(
+        "--amount-eth",
+        default="0.001",
+        help="amount of native ETH to migrate if the cycle picks migrate_to_safe",
+    )
+    seq_delay.add_argument(
+        "--execute",
+        action="store_true",
+        help="actually submit the migration tx if chosen (default: dry-run only)",
+    )
+
     args = parser.parse_args(argv)
     if args.command == "heartbeat":
         return _cmd_heartbeat()
@@ -162,6 +270,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "migrate":
         return _cmd_migrate(args)
+    if args.command == "simulate":
+        if args.scenario == "sequencer-delay":
+            return _cmd_simulate_sequencer_delay(args)
+        simulate.print_help()
+        return 0
 
     parser.print_help()
     return 0

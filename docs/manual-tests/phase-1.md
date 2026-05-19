@@ -299,6 +299,45 @@ Verified 2026-05-19: naive `UPDATE` errored with `audit_log is append-only` (exi
 
 ---
 
+## 1.9 — Simulated sequencer-delay end-to-end pipeline
+
+**Goal:** the Phase 1 milestone, closed. The agent runs one full cycle on a synthesized sequencer-delay scenario — heartbeat → breach evaluator → reasoner → migration — with every step audited.
+
+This procedure wires the substep 9 orchestrator (`napg.orchestrator.run_cycle`) and the substep 9 scenario helper (`napg.scenarios.sequencer_delay_heartbeat`) behind the `napg simulate sequencer-delay` CLI. The synthetic heartbeat carries a 600-second-old block plus a reorg flag, which the rules engine maps to three breaches and the reasoning matrix maps to `migrate_to_safe` (rule 2: reorg).
+
+**Prerequisites:**
+- 1.6 prerequisites (CDP wallet provisioned, funded on Base Sepolia, `CDP_AGENT_ADDRESS` recorded, `NAPG_SAFE_CONTRACT_ADDRESS` set to a destination you control).
+- `ANTHROPIC_API_KEY` and `NAPG_AUDIT_HMAC_KEY` populated in `.env`.
+
+**Steps:**
+```bash
+# 1. Dry-run pass — no Sepolia tx, but every audit row lands and HMAC-chains.
+uv run python -m napg simulate sequencer-delay --amount-eth 0.001
+
+# 2. Verify the cycle wrote scenario + breach(es) + decision + action rows.
+uv run python -m napg audit verify
+
+# 3. Live pass — same scenario, but the migration tx hits Sepolia.
+uv run python -m napg simulate sequencer-delay --amount-eth 0.001 --execute
+
+# 4. Verify the live cycle's audit chain.
+uv run python -m napg audit verify
+```
+
+**Expected:**
+- [ ] The dry-run report's `breaches` list contains `reorg_is_breach`, `block_age_seconds_max`, and `rpc_latency_ms_max`.
+- [ ] The `decision.intent` is `migrate_to_safe`. `supporting_breaches` cites the reorg.
+- [ ] The dry-run `action.dry_run` is `true`, `tx_hash` is `null`, `block_number` is `null`.
+- [ ] The first `audit verify` reports `ok: true` and `total_rows: 5` (scenario + 3 breaches + decision + action).
+- [ ] The live (`--execute`) `action.dry_run` is `false`, `tx_hash` is a real Sepolia tx, `status: success`.
+- [ ] That tx appears on https://sepolia.basescan.org with the agent address as `from` and `NAPG_SAFE_CONTRACT_ADDRESS` as `to`.
+- [ ] The second `audit verify` reports `ok: true` and the new total is the dry-run total plus 5 more rows.
+- [ ] `grep -a "$ANTHROPIC_API_KEY" ./audit.db` and `grep -a "$CDP_WALLET_SECRET" ./audit.db` find nothing.
+
+The first matching reasoning-matrix rule is rule 2 (reorg). If you set `--no-reorg`, the cycle should instead choose `pause_for_investigation` and no `action` row should appear. That alternate path is exercised by `tests/test_orchestrator.py::test_pause_intent_writes_decision_but_no_action`.
+
+---
+
 ## Sign-off checklist
 
 - [ ] All procedures completed.
