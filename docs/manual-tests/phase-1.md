@@ -90,13 +90,37 @@ First probe (before swapping the second market) returned `wstETH-USDC` at only $
 
 ## 1.4 — Breach threshold evaluation
 
-**Goal:** flipping a single threshold below current state triggers a breach in the agent log.
+**Goal:** flipping a single threshold below the current observed state produces exactly one matching breach record; default thresholds leave a healthy run green.
 
-**Steps:** _TODO when `napg.policy.breaches` lands._
+The rules engine lands in `napg.policy.breaches`. The full end-to-end demo (run probes → evaluate → write to audit log) lands with substep 9; this test exercises the evaluator in isolation against the live probe outputs.
+
+**Steps:**
+```bash
+# From agent/. Captures a real heartbeat, runs it through the default
+# thresholds, then through a tightened threshold to force a breach.
+uv run python - <<'PY'
+from napg.config import Settings
+from napg.monitor.rpc import RpcHeartbeat
+from napg.policy.breaches import BreachThresholds, evaluate
+
+heart = RpcHeartbeat(Settings().active_rpc_url())
+beat = heart.tick()
+
+# Default thresholds — expect no breaches against a healthy heartbeat.
+print("default:", evaluate(BreachThresholds(), heartbeat=beat))
+
+# Tighten latency below the observed value.
+tight = BreachThresholds(rpc_latency_ms_max=max(0, int(beat.latency_ms) - 1))
+print("tight:", evaluate(tight, heartbeat=beat))
+PY
+```
 
 **Expected:**
-- [ ] A test config that sets `latency_ms_max` below the current measurement produces exactly one breach in the next cycle.
-- [ ] The audit log records the breach with the input, the threshold, and the time.
+- [x] `default:` line prints `()` — every default threshold is wide enough that a healthy heartbeat is green.
+- [x] `tight:` line prints a one-element tuple containing a `Breach` with `rule='rpc_latency_ms_max'`, `source='heartbeat'`, an `actual` value matching the observed latency, and the lowered `threshold`.
+- [x] The breach record's `message` includes both the actual and threshold values.
+
+Verified 2026-05-19 against live Base Sepolia heartbeat: 883ms observed → default thresholds returned `()`, threshold tightened to 882ms returned a single `Breach` matching the contract exactly.
 
 ---
 

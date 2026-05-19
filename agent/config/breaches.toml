@@ -1,0 +1,42 @@
+# Service Level Breach thresholds for Phase 1 monitors.
+#
+# Values are deliberately conservative (broad enough not to trip during healthy
+# operation, tight enough to catch real incidents). Tune against observed
+# baselines in successive phases.
+#
+# Loaded by `napg.policy.breaches.load_thresholds()`. Field names map 1:1 to
+# the `BreachThresholds` pydantic model.
+
+# --- RPC heartbeat ---
+# Maximum acceptable round-trip latency for a single heartbeat tick.
+rpc_latency_ms_max = 2000
+
+# Maximum acceptable age of the latest block at the moment we observe it.
+# Base produces a block ~every 2s; if we're 30s behind tip something is wrong
+# (provider lag, our process stalled, or a real sequencer delay).
+block_age_seconds_max = 30
+
+# Any detected reorg is a breach. This is intentional: NAPG should never
+# silently absorb a chain reorganisation during normal operation.
+reorg_is_breach = true
+
+# --- Aerodrome USDC/USDT peg ---
+# Maximum acceptable deviation from a 1:1 USDC/USDT quote (basis points).
+# 50 bps = 0.5%. Stable pairs should sit within a few bps under normal
+# conditions; 50 bps gives headroom for routing fees and minor slippage.
+peg_deviation_bps_max = 50
+
+# If 0x reports no liquidity available for the configured probe size, treat
+# that as a breach — the surface NAPG is meant to assure isn't tradeable.
+liquidity_required = true
+
+# --- Morpho lending markets ---
+# Maximum acceptable per-market utilisation. Above ~95% withdrawals queue and
+# borrow rates spike sharply; this is the conventional Aave-style alarm point.
+market_utilization_bps_max = 9500
+
+# Maximum acceptable age of the on-chain accrual state for a market. Morpho
+# updates on every interaction, so popular markets should be much fresher.
+# One hour is a conservative ceiling that allows quiet markets to look healthy
+# while still surfacing markets that have genuinely stalled.
+market_staleness_seconds_max = 3600
