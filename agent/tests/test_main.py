@@ -76,3 +76,36 @@ def test_aerodrome_subcommand_errors_without_api_key() -> None:
         pytest.raises(RuntimeError, match="ZEROX_API_KEY"),
     ):
         cli.main(["aerodrome"])
+
+
+def test_morpho_subcommand_runs_one_tick(capsys: pytest.CaptureFixture[str]) -> None:
+    fake_settings = MagicMock()
+    fake_settings.base_rpc_url = "https://base-mainnet.example/rpc"
+
+    fake_result = MagicMock()
+    fake_result.model_dump_json.return_value = '{"poll": true}'
+
+    fake_monitor = MagicMock()
+    fake_monitor.tick.return_value = fake_result
+
+    with (
+        patch.object(cli, "Settings", return_value=fake_settings),
+        patch.object(cli, "MorphoMonitor", return_value=fake_monitor) as monitor_cls,
+    ):
+        rc = cli.main(["morpho"])
+
+    assert rc == 0
+    monitor_cls.assert_called_once_with("https://base-mainnet.example/rpc")
+    fake_monitor.tick.assert_called_once()
+    assert '{"poll": true}' in capsys.readouterr().out
+
+
+def test_morpho_subcommand_errors_without_mainnet_rpc() -> None:
+    fake_settings = MagicMock()
+    fake_settings.base_rpc_url = None
+
+    with (
+        patch.object(cli, "Settings", return_value=fake_settings),
+        pytest.raises(RuntimeError, match="BASE_RPC_URL"),
+    ):
+        cli.main(["morpho"])

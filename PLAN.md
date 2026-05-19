@@ -88,7 +88,7 @@ Build the monitoring brain. Heartbeat Base Sepolia RPC, watch Aerodrome and Seam
 ### Substeps
 - [x] Implement Web3.py RPC heartbeat: latency, block height, reorg detection against Base Sepolia
 - [x] Add AgentiPy-style liquidity probe for Aerodrome pool(s) via the 0x API
-- [ ] Add Seamless lending-market state poller (utilization, oracle freshness)
+- [x] Add Morpho Blue lending-market state poller (utilization) — originally targeted Seamless, repointed 2026-05-19 after Seamless announced wind-down. Oracle-freshness half of this substep deferred to follow-up; see [Resolved decisions](#resolved-decisions-2026-05-16)
 - [ ] Define "Service Level Breach" thresholds in a config file (latency, peg deviation, revert-rate, oracle staleness)
 - [ ] Wire LangChain + Claude (Opus-class via OpenRouter or Anthropic SDK) as the reasoning layer; inputs = protocol state JSON, output = decision intent
 - [ ] Integrate CDP AgentKit for testnet wallet creation and a `move_to_safe_contract` action
@@ -333,4 +333,4 @@ Production cutover and growth loop.
 - CI: **GitHub Actions wired up in Phase 0**. Lint + tests on every push from day one.
 - Phase 1 monitoring targets:
   - Aerodrome: `USDC/USDT` Slipstream stable pool (originally `USDC/USDbC`; repointed 2026-05-19 after a live 0x probe showed USDbC has wound down — USDC/USDT Slipstream is now Aerodrome's deepest stable/stable pool and the surface a Protocol Service Assurance probe should actually be watching)
-  - Seamless: `USDC`, `WETH`, `cbETH` supply/borrow markets
+  - Morpho Blue (originally `Seamless: USDC, WETH, cbETH supply/borrow markets`; repointed 2026-05-19 because Seamless announced an orderly wind-down in April 2026 with the web app going offline 2026-06-30 — Coinbase Loans uses Morpho Blue on Base, making it the largest load-bearing lending surface NAPG could plausibly monitor). Probed markets: WETH-collateral → USDC loan (`0x8793...1bda`), cbBTC-collateral → USDC loan (`0x9103...1836`, the market that powers Coinbase Loans). Oracle-freshness half deferred to a follow-up substep because Morpho oracles are arbitrary `IOracle` contracts and need per-market introspection
