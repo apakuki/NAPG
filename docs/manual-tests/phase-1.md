@@ -199,12 +199,42 @@ Verified 2026-05-19 against live Claude Opus 4.7 with the substep-5 expanded sys
 
 **Goal:** the headline Phase 1 milestone — agent detects a simulated sequencer delay and migrates testnet funds.
 
-**Steps:** _TODO when the migration path is implemented._
+Substep 6 lands the *action* primitive (`napg.actions.migrate_to_safe`) and the CDP-backed agent wallet (`napg.wallet.build_agent_wallet`). This test exercises the action in isolation, both dry-run and live. The full reasoning → action loop closes in substep 9.
+
+**Prerequisites:**
+- `.env` populated with `CDP_API_KEY_NAME`, `CDP_API_KEY_PRIVATE_KEY`, `CDP_WALLET_SECRET` (v2), and `NAPG_AUDIT_HMAC_KEY`
+- A funded Base Sepolia agent wallet (created on first run; address recorded in `CDP_AGENT_ADDRESS` for subsequent runs)
+- `NAPG_SAFE_CONTRACT_ADDRESS` set to a destination wallet you control (Phase 1: any Sepolia address you own; Phase 5: a vetted safe contract)
+
+**Steps:**
+```bash
+# 1. Provision (on first run) and display the agent wallet
+uv run python -m napg wallet show
+# Copy the printed `address` into CDP_AGENT_ADDRESS in .env so subsequent
+# runs reuse the same wallet rather than creating fresh accounts.
+
+# 2. Fund the agent wallet from a Base Sepolia faucet
+# (Coinbase Faucet, Alchemy Faucet, or any other Sepolia faucet)
+
+# 3. Dry-run the migration — should succeed without sending a tx
+uv run python -m napg migrate --amount-eth 0.001
+
+# 4. Execute a real migration — sends a Base Sepolia tx
+uv run python -m napg migrate --amount-eth 0.001 --execute
+
+# 5. Verify the audit log captured both calls
+uv run python -m napg audit verify
+```
 
 **Expected:**
-- [ ] Migration tx hash appears in audit log and on Base Sepolia explorer.
-- [ ] Funds move from monitored address to the safe contract address.
-- [ ] Audit log contains a human-readable explanation of why.
+- [ ] `wallet show` prints a `0x`-prefixed agent address, a `balance_wei` value, and `network: base-sepolia`.
+- [ ] The dry-run output is an `ActionRecord` with `dry_run=true`, no `tx_hash`, no `block_number`.
+- [ ] The `--execute` output is an `ActionRecord` with `dry_run=false`, a real `tx_hash`, a `block_number`, and `status=success`.
+- [ ] The tx hash is visible on Base Sepolia explorer (https://sepolia.basescan.org) with the correct from/to/value.
+- [ ] `napg audit verify` reports `total_rows: 2`, `tampered: []`, exit code 0.
+- [ ] `grep -a "$CDP_WALLET_SECRET" ./audit.db` finds nothing (the wallet secret never lands in the DB).
+
+The "agent detects a simulated sequencer delay and migrates testnet funds" milestone closes in [substep 9](#19--simulated-sequencer-delay-end-to-end-pipeline) once the heartbeat probe → breach evaluator → reasoner → action pipeline is wired end-to-end.
 
 ---
 
