@@ -1,11 +1,17 @@
-"""Liquidity probe for the Aerodrome USDC/USDbC stable pool via the 0x API.
+"""Liquidity probe for the Aerodrome USDT/USDC stable pool via the 0x API.
 
 The 0x v2 aggregator routes through whichever source clears at the best price,
-so a single probe reports the market-clearing USDC/USDbC rate for the entire
+so a single probe reports the market-clearing USDC/USDT rate for the entire
 Base ecosystem and lists which sources actually filled. For peg-deviation
 monitoring this is more useful than a single-pool read: if Aerodrome routes,
 we surveil it; if not, the absence of Aerodrome in the route is itself signal
 (depeg, drained liquidity, or fee/spread regression).
+
+The probed pair is USDC/USDT, not USDC/USDbC: USDbC (Coinbase Bridged USDC) has
+been in wind-down since Circle deployed native USDC on Base in September 2023,
+and the Aerodrome USDC/USDbC pool no longer carries meaningful TVL. USDT/USDC
+is currently Aerodrome's deepest stable/stable pool, which is the surface a
+Protocol Service Assurance probe should actually be watching.
 
 Aerodrome lives on Base mainnet only, so this probe always queries chainId
 8453 regardless of the agent's configured execution network.
@@ -19,7 +25,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 USDC_BASE_MAINNET = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
-USDBC_BASE_MAINNET = "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA"
+USDT_BASE_MAINNET = "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2"
 BASE_CHAIN_ID = 8453
 ZEROX_PRICE_URL = "https://api.0x.org/swap/permit2/price"
 ZEROX_API_VERSION = "v2"
@@ -83,7 +89,7 @@ class LiquidityProbe(BaseModel):
 
 
 class AerodromeMonitor:
-    """0x-backed probe for USDC/USDbC liquidity on Base mainnet.
+    """0x-backed probe for USDC/USDT liquidity on Base mainnet.
 
     Inject an `httpx.Client` to mock in tests via `httpx.MockTransport`.
     """
@@ -93,7 +99,7 @@ class AerodromeMonitor:
         api_key: str,
         http: httpx.Client | None = None,
         sell_token: str = USDC_BASE_MAINNET,
-        buy_token: str = USDBC_BASE_MAINNET,
+        buy_token: str = USDT_BASE_MAINNET,
         sell_amount: int = DEFAULT_PROBE_AMOUNT_USDC,
         timeout: float = 5.0,
     ) -> None:
@@ -173,8 +179,8 @@ def _build_probe(
 __all__ = [
     "BASE_CHAIN_ID",
     "DEFAULT_PROBE_AMOUNT_USDC",
-    "USDBC_BASE_MAINNET",
     "USDC_BASE_MAINNET",
+    "USDT_BASE_MAINNET",
     "AerodromeMonitor",
     "LiquidityProbe",
 ]

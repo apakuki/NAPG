@@ -35,7 +35,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--version", action="version", version=f"napg {__version__}")
     sub = parser.add_subparsers(dest="command")
     sub.add_parser("heartbeat", help="run one RPC heartbeat against the configured network")
-    sub.add_parser("aerodrome", help="probe Aerodrome USDC/USDbC liquidity via the 0x API")
+    sub.add_parser("aerodrome", help="probe Aerodrome USDC/USDT liquidity via the 0x API")
 
     args = parser.parse_args(argv)
     if args.command == "heartbeat":

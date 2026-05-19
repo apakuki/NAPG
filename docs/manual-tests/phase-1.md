@@ -27,25 +27,29 @@ Verified 2026-05-18 against the rotated Alchemy Base Sepolia endpoint after the 
 
 ---
 
-## 1.2 — Aerodrome USDC/USDbC pool probe
+## 1.2 — Aerodrome USDC/USDT pool probe
 
-**Goal:** quoted USDC/USDbC rate is on-peg and at least one of the routed sources is recognisably an Aerodrome variant when the pool is healthy.
+**Goal:** quoted USDC/USDT rate is on-peg and at least one of the routed sources is recognisably an Aerodrome variant when the pool is healthy.
+
+The probed pair was originally USDC/USDbC, repointed to USDC/USDT on 2026-05-19 — see [PLAN.md "Resolved decisions"](../../PLAN.md#resolved-decisions-2026-05-16) for the rationale.
 
 **Steps:**
 ```bash
 # From agent/, with .env populated (ZEROX_API_KEY=...)
 uv run python -m napg aerodrome
 # Compare the quoted_rate against a block-explorer read of the Aerodrome
-# USDC/USDbC stable pool reserves (ratio = reserve_USDbC / reserve_USDC).
+# USDC/USDT Slipstream pool (ratio = reserve_USDT / reserve_USDC).
 ```
 
 The probe queries Base mainnet (chainId 8453) regardless of `NAPG_NETWORK`, because Aerodrome only exists on mainnet.
 
 **Expected:**
-- [ ] Output is JSON with `chain_id=8453`, `liquidity_available=true`, `sell_amount=10000000000` (10k USDC at 6 decimals).
-- [ ] `quoted_rate` within 1% of the explorer-derived rate for the pool.
-- [ ] `peg_deviation_bps` is small (single digits) during a quiet, healthy window.
-- [ ] `sources` contains at least one Aerodrome variant (e.g. `Aerodrome_V1_Stable`) when the pool is the deepest source; if absent, capture the route in the runbook — it means another venue is currently clearing tighter than Aerodrome.
+- [x] Output is JSON with `chain_id=8453`, `liquidity_available=true`, `sell_amount=10000000000` (10k USDC at 6 decimals).
+- [x] `quoted_rate` within 1% of the explorer-derived rate for the pool.
+- [x] `peg_deviation_bps` is small (single digits) during a quiet, healthy window.
+- [x] `sources` contains at least one Aerodrome variant (e.g. `Aerodrome_V3`, which is 0x's label for Aerodrome Slipstream) when the pool is the deepest source; if absent, capture the route in the runbook — it means another venue is currently clearing tighter than Aerodrome.
+
+Verified 2026-05-19: live probe returned `peg_deviation_bps=6`, route `["Aerodrome_V3"]`, after pivoting the pair from USDC/USDbC to USDC/USDT (USDbC has wound down; see [PLAN.md "Resolved decisions"](../../PLAN.md#resolved-decisions-2026-05-16)). The earlier USDC/USDbC probe ran 2026-05-19 first and surfaced no Aerodrome in the route plus 15 bps deviation — that was the signal that drove the pivot.
 
 ---
 

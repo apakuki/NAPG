@@ -332,5 +332,5 @@ Production cutover and growth loop.
 - Production host: **Fly.io**. Dockerfile deploy, persistent volume for the audit DB.
 - CI: **GitHub Actions wired up in Phase 0**. Lint + tests on every push from day one.
 - Phase 1 monitoring targets:
-  - Aerodrome: `USDC/USDbC` stable pool
+  - Aerodrome: `USDC/USDT` Slipstream stable pool (originally `USDC/USDbC`; repointed 2026-05-19 after a live 0x probe showed USDbC has wound down — USDC/USDT Slipstream is now Aerodrome's deepest stable/stable pool and the surface a Protocol Service Assurance probe should actually be watching)
   - Seamless: `USDC`, `WETH`, `cbETH` supply/borrow markets
