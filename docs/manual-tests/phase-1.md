@@ -53,15 +53,38 @@ Verified 2026-05-19: live probe returned `peg_deviation_bps=6`, route `["Aerodro
 
 ---
 
-## 1.3 — Seamless market state (USDC, WETH, cbETH)
+## 1.3 — Morpho Blue market state (WETH-USDC, cbBTC-USDC)
 
-**Goal:** utilization, oracle freshness, and supply caps match Seamless's own dashboard.
+**Goal:** utilisation and on-chain accrual staleness for the two monitored Morpho Blue markets match what the [Morpho app](https://app.morpho.org/base) shows for the same markets.
 
-**Steps:** _TODO when `napg.monitor.seamless` lands._
+Originally this test was scoped to Seamless lending markets, but Seamless announced an orderly wind-down in April 2026 (web app offline 2026-06-30) and would not exist at NAPG's launch. We repointed to Morpho Blue on Base because Coinbase Loans uses Morpho Blue as its underlying lending primitive — it is the largest load-bearing lending surface on Base. See [PLAN.md "Resolved decisions"](../../PLAN.md#resolved-decisions-2026-05-16).
+
+Oracle freshness (the second half of the original substep) is deferred to a follow-up: Morpho oracles are arbitrary `IOracle` contracts, not a single shared registry like `AaveOracle`, so freshness needs per-market introspection rather than one universal lookup.
+
+**Steps:**
+```bash
+# From agent/, with .env populated (BASE_RPC_URL=https://base-mainnet.g.alchemy.com/v2/...)
+uv run python -m napg morpho
+```
+
+Cross-check each market against its page on app.morpho.org:
+- WETH-USDC market: `https://app.morpho.org/base/market/0x8793cf302b8ffd655ab97bd1c695dbd967807e8367a65cb2f4edaf1380ba1bda/weth-usdc`
+- cbBTC-USDC market (Coinbase Loans): `https://app.morpho.org/base/market/0x9103c3b4e834476c9a62ea009ba2c884ee42e94e6e314a26f04d312434191836/cbbtc-usdc`
+
+Note: this hits **Base mainnet**, not Sepolia, regardless of `NAPG_NETWORK`. Morpho only exists on mainnet. With Alchemy you can use the same project key as the heartbeat endpoint, just swap the subdomain from `base-sepolia` to `base-mainnet`.
 
 **Expected:**
-- [ ] All three markets report current utilization to within 0.5% of Seamless UI.
-- [ ] Oracle age in seconds is within the expected refresh interval.
+- [x] Output is JSON with `chain_id=8453`, two `markets` entries (`WETH-USDC`, `cbBTC-USDC`).
+- [ ] For each market, `total_supply_assets` and `total_borrow_assets` are within 1% of the figures shown in the Morpho UI for that market (the UI displays USDC totals; remember our output is in raw 6-decimal USDC units). _Manual cross-check against app.morpho.org pending._
+- [ ] `utilization_bps` matches the UI's "Utilization" percentage (e.g. UI 78.3% ↔ `utilization_bps` between 7820 and 7840). _Manual cross-check pending._
+- [x] `staleness_seconds` is small (typically under a few minutes) — Morpho accruals update on every interaction, so a low-activity market may show several minutes of staleness; flag anything above ~1 hour for follow-up.
+- [x] `latency_ms` reasonable for a single RPC round trip with two contract reads.
+
+Verified 2026-05-19 against live Morpho Blue on Base mainnet:
+- WETH-USDC: $76.98M supply, $69.58M borrow, 9039 utilisation bps, 44s staleness
+- cbBTC-USDC: $1.35B supply, $1.22B borrow, 9039 utilisation bps, 4s staleness (matches public "$1.4B+ cbBTC collateralized" reporting almost exactly)
+
+First probe (before swapping the second market) returned `wstETH-USDC` at only $485 supply — that signal drove the swap to `cbBTC-USDC`. The pivot is recorded in [PLAN.md "Resolved decisions"](../../PLAN.md#resolved-decisions-2026-05-16).
 
 ---
 

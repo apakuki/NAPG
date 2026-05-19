@@ -8,6 +8,7 @@ import sys
 from napg import __version__
 from napg.config import Settings
 from napg.monitor.aerodrome import AerodromeMonitor
+from napg.monitor.morpho import MorphoMonitor
 from napg.monitor.rpc import RpcHeartbeat
 
 
@@ -30,18 +31,34 @@ def _cmd_aerodrome() -> int:
     return 0
 
 
+def _cmd_morpho() -> int:
+    settings = Settings()
+    if not settings.base_rpc_url:
+        raise RuntimeError(
+            "BASE_RPC_URL is not set; Morpho lives on Base mainnet so a mainnet RPC "
+            "endpoint is required regardless of NAPG_NETWORK."
+        )
+    monitor = MorphoMonitor(settings.base_rpc_url)
+    result = monitor.tick()
+    print(result.model_dump_json(indent=2))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="napg", description="NetAssure Protocol Guardian")
     parser.add_argument("--version", action="version", version=f"napg {__version__}")
     sub = parser.add_subparsers(dest="command")
     sub.add_parser("heartbeat", help="run one RPC heartbeat against the configured network")
     sub.add_parser("aerodrome", help="probe Aerodrome USDC/USDT liquidity via the 0x API")
+    sub.add_parser("morpho", help="poll Morpho Blue lending markets on Base mainnet")
 
     args = parser.parse_args(argv)
     if args.command == "heartbeat":
         return _cmd_heartbeat()
     if args.command == "aerodrome":
         return _cmd_aerodrome()
+    if args.command == "morpho":
+        return _cmd_morpho()
 
     parser.print_help()
     return 0
