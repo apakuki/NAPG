@@ -229,12 +229,20 @@ uv run python -m napg audit verify
 **Expected:**
 - [x] `wallet show` prints a `0x`-prefixed agent address, a `balance_wei` value, and `network: base-sepolia`.
 - [x] The dry-run output is an `ActionRecord` with `dry_run=true`, no `tx_hash`, no `block_number`.
-- [ ] The `--execute` output is an `ActionRecord` with `dry_run=false`, a real `tx_hash`, a `block_number`, and `status=success`. _Blocked on a funded Base Sepolia wallet._
-- [ ] The tx hash is visible on Base Sepolia explorer (https://sepolia.basescan.org) with the correct from/to/value. _Blocked on the live `--execute`._
+- [x] The `--execute` output is an `ActionRecord` with `dry_run=false`, a real `tx_hash`, a `block_number`, and `status=success`.
+- [x] The tx hash is visible on Base Sepolia explorer (https://sepolia.basescan.org) with the correct from/to/value.
 - [x] `napg audit verify` reports `tampered: []`, exit code 0 (row count grew with the dry-run runs; live `--execute` adds a second action row).
 - [x] `grep -a "$CDP_WALLET_SECRET" ./audit.db` finds nothing (the wallet secret never lands in the DB).
 
-Verified 2026-05-20 dry-run half: `wallet show` printed agent address `0xD7DeE1AddD6283496BD8f369A603967557D6ab8C` with `balance_wei: "0"` (unfunded, so the live `--execute` half stays blocked). `migrate --amount-eth 0.001` (no `--execute`) returned an ActionRecord with `dry_run: true`, `tx_hash: null`, `block_number: null`, and `value_wei: 1000000000000000`. `napg audit verify` returned `{"total_rows": 1, "tampered": []}` exit 0 on this run, then `{"total_rows": 7, "tampered": []}` after 1.9 dry-run added scenario + 3 breaches + decision + action. `grep -a` against the DB for `CDP_WALLET_SECRET`, `CDP_API_KEY_PRIVATE_KEY`, `ANTHROPIC_API_KEY`, and `NAPG_AUDIT_HMAC_KEY` all returned no hits.
+Verified 2026-05-20: wallet `0xD7DeE1AddD6283496BD8f369A603967557D6ab8C` funded via the CDP faucet (`evm.request_faucet(network="base-sepolia", token="eth")` — 0.0001 ETH per drop, ~10 drops before rate-limit), reaching 0.0015 ETH.
+
+Dry-run half: `migrate --amount-eth 0.001` returned `dry_run: true`, `tx_hash: null`, `value_wei: 1000000000000000`.
+
+Live `--execute` half: `migrate --amount-eth 0.0001 --execute` returned `dry_run: false`, `tx_hash: 0x4461ead22751384563652adb281b66507e8c83c3037b2a6de9450d90d4df8462`, `block_number: 41736663`, `status: success`. View tx: https://sepolia.basescan.org/tx/0x4461ead22751384563652adb281b66507e8c83c3037b2a6de9450d90d4df8462.
+
+A real bug surfaced on the first live attempt: `napg.actions.migrate_to_safe` was passing `value=str(value_wei)` to `wallet.native_transfer`, but `CdpEvmWalletProvider.native_transfer` treats `value` as a whole-ether Decimal (it runs `Web3.to_wei(value, "ether")` internally), so the CDP API rejected the call as "Insufficient balance" no matter how much ETH was held. Fix: convert `value_wei -> Decimal(value_wei) / Decimal(10**18)` before calling `native_transfer`; regression test `test_execute_converts_wei_to_whole_ether_decimal` pins the conversion.
+
+`napg audit verify` returned `{"total_rows": 14, "tampered": []}` end-of-run, exit 0 (1.6 dry + 1.9 dry + 1.6 live + 1.9 live). `grep -a` against the DB for `CDP_WALLET_SECRET`, `CDP_API_KEY_PRIVATE_KEY`, `ANTHROPIC_API_KEY`, and `NAPG_AUDIT_HMAC_KEY` all returned no hits.
 
 The "agent detects a simulated sequencer delay and migrates testnet funds" milestone closes in [substep 9](#19--simulated-sequencer-delay-end-to-end-pipeline) once the heartbeat probe → breach evaluator → reasoner → action pipeline is wired end-to-end.
 
@@ -357,12 +365,14 @@ uv run python -m napg audit verify
 - [x] The `decision.intent` is `migrate_to_safe`. `supporting_breaches` cites the reorg.
 - [x] The dry-run `action.dry_run` is `true`, `tx_hash` is `null`, `block_number` is `null`.
 - [x] The first `audit verify` reports `ok: true` (row count grew by 5 from the 1.9 dry-run: scenario + 3 breaches + decision + action).
-- [ ] The live (`--execute`) `action.dry_run` is `false`, `tx_hash` is a real Sepolia tx, `status: success`. _Blocked on a funded Base Sepolia wallet._
-- [ ] That tx appears on https://sepolia.basescan.org with the agent address as `from` and `NAPG_SAFE_CONTRACT_ADDRESS` as `to`. _Blocked on the live `--execute`._
-- [ ] The second `audit verify` reports `ok: true` and the new total is the dry-run total plus 5 more rows. _Blocked on the live `--execute`._
+- [x] The live (`--execute`) `action.dry_run` is `false`, `tx_hash` is a real Sepolia tx, `status: success`.
+- [x] That tx appears on https://sepolia.basescan.org with the agent address as `from` and `NAPG_SAFE_CONTRACT_ADDRESS` as `to`.
+- [x] The second `audit verify` reports `ok: true` and the new total is the dry-run total plus 5 more rows.
 - [x] `grep -a "$ANTHROPIC_API_KEY" ./audit.db` and `grep -a "$CDP_WALLET_SECRET" ./audit.db` find nothing.
 
-Verified 2026-05-20 dry-run half against live Claude Opus 4.7: three breaches (`rpc_latency_ms_max` 4500/2000, `block_age_seconds_max` 600/30, `reorg_is_breach`), `decision.intent=migrate_to_safe`, `supporting_breaches=[reorg_is_breach, rpc_latency_ms_max, block_age_seconds_max]`, confidence 0.97, rationale cited the decision-matrix rule 2 (reorg) and rule 6 (heartbeat degradation) by name. Cache metadata: `input_tokens=1245`, `cache_creation_input_tokens=2406`, `cache_read_input_tokens=0` (cold call — the 1.5 cache rolled because of the gap and fresh prompt prefix). Dry-run action recorded with `value_wei: 1000000000000000`, `tx_hash: null`. `napg audit verify` returned `{"total_rows": 7, "tampered": []}` exit 0 across the combined 1.6+1.9 dry-run rows.
+Verified 2026-05-20 against live Claude Opus 4.7. Dry-run half: three breaches (`rpc_latency_ms_max` 4500/2000, `block_age_seconds_max` 600/30, `reorg_is_breach`), `decision.intent=migrate_to_safe`, `supporting_breaches=[reorg_is_breach, rpc_latency_ms_max, block_age_seconds_max]`, confidence 0.97, rationale cited the decision-matrix rule 2 (reorg) and rule 6 (heartbeat degradation) by name. Cache metadata: `input_tokens=1245`, `cache_creation_input_tokens=2406`, `cache_read_input_tokens=0` (cold call — the 1.5 cache rolled because of the gap). Dry-run action recorded with `value_wei: 1000000000000000`, `tx_hash: null`.
+
+Live `--execute` half (after the wei→ETH bug fix from 1.6): identical breach + decision shape, `tx_hash: 0x08169a1ceeff47cc127716bca8fe4b54946b772944014c245f69034b4f2bd8de`, `block_number: 41736671`, `status: success`. View tx: https://sepolia.basescan.org/tx/0x08169a1ceeff47cc127716bca8fe4b54946b772944014c245f69034b4f2bd8de. Cache metadata on the live call: cold call again (`cache_creation_input_tokens=2406`, `cache_read_input_tokens=0`) — TTL had expired between the dry-run and the bug-fix cycle. `napg audit verify` returned `{"total_rows": 14, "tampered": []}` across all four runs combined (1.6 dry + 1.9 dry + 1.6 live + 1.9 live). Secret-leak grep across the DB for `ANTHROPIC_API_KEY`, `CDP_API_KEY_PRIVATE_KEY`, `CDP_WALLET_SECRET`, and `NAPG_AUDIT_HMAC_KEY` returned zero hits.
 
 The first matching reasoning-matrix rule is rule 2 (reorg). If you set `--no-reorg`, the cycle should instead choose `pause_for_investigation` and no `action` row should appear. That alternate path is exercised by `tests/test_orchestrator.py::test_pause_intent_writes_decision_but_no_action`.
 
