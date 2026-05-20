@@ -10,11 +10,21 @@ from unittest.mock import MagicMock
 import pytest
 
 from napg.actions import ActionRecord, migrate_to_safe
+from napg.agentshield.pipeline import StageResult, TxIntent, ValidationResult
 from napg.audit import AuditLog, verify
 
 HMAC_KEY = "test-hmac-key-do-not-use-in-prod"
 AGENT = "0x" + "11" * 20
 SAFE = "0x" + "22" * 20
+
+
+def _passing_validator(intent: TxIntent) -> ValidationResult:
+    """Stub validator that always passes — for tests that don't exercise AgentShield."""
+    stages = tuple(
+        StageResult(stage=name, passed=True)
+        for name in ("intent_judge", "policy", "tenderly", "honeypot")
+    )
+    return ValidationResult(intent=intent, stages=stages, passed=True)
 
 
 def _wallet(tx_hash: str = "0x" + "ab" * 32, block_number: int = 46_300_000) -> MagicMock:
@@ -47,7 +57,7 @@ def test_execute_path_submits_and_captures_receipt() -> None:
     wallet = _wallet(tx_hash="0x" + "cd" * 32, block_number=46_400_000)
 
     # 5_000 wei = 5e-15 ETH — pick a value whose Decimal conversion is exact.
-    record = migrate_to_safe(wallet, SAFE, 5_000, dry_run=False)
+    record = migrate_to_safe(wallet, SAFE, 5_000, dry_run=False, validator=_passing_validator)
 
     wallet.native_transfer.assert_called_once()
     kwargs = wallet.native_transfer.call_args.kwargs
@@ -66,7 +76,7 @@ def test_execute_converts_wei_to_whole_ether_decimal() -> None:
     wallet = _wallet()
 
     # 1 ETH = 10**18 wei. The Decimal handed to the wallet must equal 1.
-    migrate_to_safe(wallet, SAFE, 10**18, dry_run=False)
+    migrate_to_safe(wallet, SAFE, 10**18, dry_run=False, validator=_passing_validator)
     value = wallet.native_transfer.call_args.kwargs["value"]
     assert value == Decimal("1")
 
@@ -75,7 +85,7 @@ def test_receipt_status_zero_reports_failure() -> None:
     wallet = _wallet()
     wallet.wait_for_transaction_receipt.return_value = SimpleNamespace(block_number=1, status=0)
 
-    record = migrate_to_safe(wallet, SAFE, 1, dry_run=False)
+    record = migrate_to_safe(wallet, SAFE, 1, dry_run=False, validator=_passing_validator)
     assert record.status == "failure"
 
 
@@ -84,7 +94,7 @@ def test_receipt_camelcase_field_supported() -> None:
     wallet = _wallet()
     wallet.wait_for_transaction_receipt.return_value = SimpleNamespace(blockNumber=99, status=1)
 
-    record = migrate_to_safe(wallet, SAFE, 1, dry_run=False)
+    record = migrate_to_safe(wallet, SAFE, 1, dry_run=False, validator=_passing_validator)
     assert record.block_number == 99
 
 
@@ -120,7 +130,14 @@ def test_executed_action_writes_audit_row(tmp_path: Path) -> None:
     wallet = _wallet(tx_hash="0x" + "ef" * 32, block_number=46_500_000)
 
     with AuditLog(db, hmac_key=HMAC_KEY) as log:
-        record = migrate_to_safe(wallet, SAFE, 100, dry_run=False, audit_log=log)
+        record = migrate_to_safe(
+            wallet,
+            SAFE,
+            100,
+            dry_run=False,
+            audit_log=log,
+            validator=_passing_validator,
+        )
         rows = list(log.iter_rows())
 
     assert len(rows) == 1
@@ -137,7 +154,7 @@ def test_action_row_passes_hmac_verification(tmp_path: Path) -> None:
     wallet = _wallet()
 
     with AuditLog(db, hmac_key=HMAC_KEY) as log:
-        migrate_to_safe(wallet, SAFE, 1, dry_run=False, audit_log=log)
+        migrate_to_safe(wallet, SAFE, 1, dry_run=False, audit_log=log, validator=_passing_validator)
 
     result = verify(db, HMAC_KEY)
     assert result.ok is True

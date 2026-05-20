@@ -24,9 +24,12 @@ through library code.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from pydantic import BaseModel, ConfigDict
 
 from napg.actions import ActionRecord, migrate_to_safe
+from napg.agentshield.pipeline import TxIntent, ValidationResult
 from napg.audit import AuditLog
 from napg.monitor.aerodrome import LiquidityProbe
 from napg.monitor.morpho import MorphoPoll
@@ -57,6 +60,7 @@ def run_cycle(
     safe_address: str | None = None,
     value_wei: int = 0,
     dry_run: bool = True,
+    validator: Callable[[TxIntent], ValidationResult] | None = None,
     now: float | None = None,
 ) -> CycleReport:
     """Run one decision cycle and return a report of what happened.
@@ -64,6 +68,10 @@ def run_cycle(
     `wallet` is typed `object` here because the only contract the orchestrator
     needs is the one `migrate_to_safe` already enforces via its own Protocol.
     Re-stating it here would just create duplicate import surface.
+
+    `validator` is required when `dry_run=False` and the decision is
+    `migrate_to_safe`; the AgentShield pipeline runs before any wallet
+    method is touched. Dry-run cycles need no validator (they do not sign).
     """
     breaches = evaluate(
         thresholds,
@@ -97,6 +105,9 @@ def run_cycle(
             value_wei,
             dry_run=dry_run,
             audit_log=audit_log,
+            validator=validator,
+            rationale=decision.rationale,
+            supporting_breaches=decision.supporting_breaches,
         )
 
     return CycleReport(breaches=breaches, decision=decision, action=action)

@@ -16,11 +16,21 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from napg.agentshield.pipeline import StageResult, TxIntent, ValidationResult
 from napg.audit import AuditLog, verify
 from napg.orchestrator import CycleReport, run_cycle
 from napg.policy.breaches import BreachThresholds
 from napg.reasoning import Reasoner
 from napg.scenarios import sequencer_delay_heartbeat
+
+
+def _passing_validator(intent: TxIntent) -> ValidationResult:
+    stages = tuple(
+        StageResult(stage=name, passed=True)
+        for name in ("intent_judge", "policy", "tenderly", "honeypot")
+    )
+    return ValidationResult(intent=intent, stages=stages, passed=True)
+
 
 HMAC_KEY = "test-hmac-key-do-not-use-in-prod"
 AGENT_ADDR = "0x" + "11" * 20
@@ -246,6 +256,7 @@ def test_executed_migrate_records_tx_hash(tmp_path: Path) -> None:
             safe_address=SAFE_ADDR,
             value_wei=5_000,
             dry_run=False,
+            validator=_passing_validator,
             now=1_716_000_000.0,
         )
 
