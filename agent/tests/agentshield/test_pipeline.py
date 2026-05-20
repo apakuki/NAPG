@@ -235,3 +235,44 @@ def test_intent_rejects_short_address() -> None:
             to_address="0x" + "b" * 40,
             value_wei=1,
         )
+
+
+def test_kill_switch_engaged_mid_cycle_blocks_next_attempt(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One decision cycle: first call passes, env engages, second call blocks.
+
+    Confirms the PLAN claim that engaging the kill-switch halts all signing
+    within one decision cycle — the next `validate_or_die` invocation sees
+    the new env state without any restart.
+    """
+    monkeypatch.delenv("NAPG_KILL_SWITCH", raising=False)
+    db_path = tmp_path / "audit.db"
+    with AuditLog(str(db_path), hmac_key="test-key") as log:
+        first = validate_or_die(
+            SAMPLE_INTENT,
+            audit_log=log,
+            intent_judge=_ok("intent_judge"),
+            policy=_ok("policy"),
+            tenderly=_ok("tenderly"),
+            honeypot=_ok("honeypot"),
+        )
+        assert first.passed is True
+
+        monkeypatch.setenv("NAPG_KILL_SWITCH", "1")
+
+        with pytest.raises(ValidationFailure) as excinfo:
+            validate_or_die(
+                SAMPLE_INTENT,
+                audit_log=log,
+                intent_judge=_ok("intent_judge"),
+                policy=_ok("policy"),
+                tenderly=_ok("tenderly"),
+                honeypot=_ok("honeypot"),
+            )
+        rows = list(log.iter_rows())
+
+    assert excinfo.value.result.kill_switch_engaged is True
+    assert len(rows) == 2
+    assert rows[0].payload["passed"] is True
+    assert rows[1].payload["kill_switch_engaged"] is True
