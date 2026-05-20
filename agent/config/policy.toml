@@ -1,0 +1,30 @@
+# Phase 2 AgentShield policy — Stage 2 (Policy Validation).
+#
+# Loaded by `napg.agentshield.policy.load_policy`. The loader verifies
+# this file's Ed25519 signature (at `policy.toml.sig`) against the
+# committed public key at `policy_public_key.pem` before parsing. To
+# change any value below: edit -> `napg policy sign agent/config/policy.toml`
+# -> commit the updated `.sig` alongside.
+#
+# Testnet defaults are deliberately tight: 0.001 ETH per tx and 0.005 ETH
+# across any rolling 24h. The Sepolia agent wallet should hold only dust
+# anyway; these are the secondary fence.
+
+# Per-tx cap. The maximum value (in wei) any single migration is allowed
+# to carry. Anything over this trips Stage 2.
+max_value_wei_per_tx = 1000000000000000  # 0.001 ETH
+
+# Rolling 24h spend ceiling (in wei). Stage 2 sums non-dry-run `action`
+# rows in the audit log over the last 24h and refuses the next tx if the
+# projected total (existing spend + this tx) would exceed this.
+daily_spend_cap_wei = 5000000000000000  # 0.005 ETH
+
+# Token allowlist. Empty = no ERC-20 allowlist check applies; combined
+# with the calldata gate in Stage 2 this means native-ETH transfers only.
+# Populate with ERC-20 contract addresses once calldata decoding lands.
+token_allowlist = []
+
+# Destination allowlist. Empty = any destination passes the allowlist
+# check (the denylist still applies). Populate with exactly the safe
+# contract addresses you trust if you want to tighten beyond denylist-only.
+destination_allowlist = []

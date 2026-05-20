@@ -5,9 +5,17 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 
 from napg import __version__
 from napg.actions import migrate_to_safe
+from napg.agentshield.policy import (
+    default_private_key_path,
+    default_public_key_path,
+    generate_keypair,
+    sign_file,
+    verify_file,
+)
 from napg.api import create_app
 from napg.audit import AuditLog
 from napg.audit import verify as audit_verify
@@ -181,6 +189,63 @@ class _DryRunWallet:
         raise RuntimeError("_DryRunWallet has no receipts; rerun with --execute")
 
 
+def _cmd_policy_generate_key() -> int:
+    """Create an Ed25519 keypair: private at ~/.napg/, public at agent/config/.
+
+    The private key never lands in the repo. The public key gets written
+    into `agent/config/policy_public_key.pem` so the loader has something
+    to verify against. Idempotent only if no key exists at the target path;
+    re-running with an existing key refuses to clobber it.
+    """
+    private_path = default_private_key_path()
+    public_path = default_public_key_path()
+    if private_path.exists():
+        print(
+            f"refusing to overwrite existing private key at {private_path}; "
+            "remove it manually first if you are intentionally rotating.",
+            file=sys.stderr,
+        )
+        return 2
+    private_path.parent.mkdir(parents=True, exist_ok=True)
+    public_path.parent.mkdir(parents=True, exist_ok=True)
+    private_pem, public_pem = generate_keypair()
+    private_path.write_bytes(private_pem)
+    private_path.chmod(0o600)
+    public_path.write_bytes(public_pem)
+    print(
+        json.dumps(
+            {
+                "private_key_path": str(private_path),
+                "public_key_path": str(public_path),
+                "note": (
+                    "Commit the public key. Keep the private key out of git "
+                    "(it is under ~/.napg/, which is outside the repo)."
+                ),
+            },
+            indent=2,
+        )
+    )
+    return 0
+
+
+def _cmd_policy_sign(args: argparse.Namespace) -> int:
+    """Sign a config file with the configured private key. Writes <path>.sig."""
+    config_path = Path(args.path)
+    private_path = Path(args.private_key) if args.private_key else default_private_key_path()
+    sig_path = sign_file(config_path, private_path)
+    print(json.dumps({"signed": str(config_path), "signature": str(sig_path)}, indent=2))
+    return 0
+
+
+def _cmd_policy_verify(args: argparse.Namespace) -> int:
+    """Verify a config file's signature against the configured public key."""
+    config_path = Path(args.path)
+    public_path = Path(args.public_key) if args.public_key else default_public_key_path()
+    verify_file(config_path, public_path)
+    print(json.dumps({"verified": str(config_path), "public_key": str(public_path)}, indent=2))
+    return 0
+
+
 def _cmd_serve(args: argparse.Namespace) -> int:
     """Run the FastAPI app via uvicorn. Imported lazily so tests don't need uvicorn."""
     import uvicorn  # lazy: keeps uvicorn out of the import path for `napg` consumers
@@ -257,6 +322,32 @@ def main(argv: list[str] | None = None) -> int:
         help="actually submit the migration tx if chosen (default: dry-run only)",
     )
 
+    policy = sub.add_parser(
+        "policy",
+        help="AgentShield policy + denylist key management (Ed25519)",
+    )
+    policy_sub = policy.add_subparsers(dest="policy_command")
+    policy_sub.add_parser(
+        "generate-key",
+        help="generate ~/.napg/policy_signing_key.pem and agent/config/policy_public_key.pem",
+    )
+    policy_sign = policy_sub.add_parser("sign", help="sign a config file; writes <path>.sig")
+    policy_sign.add_argument("path", help="config file to sign (e.g. agent/config/policy.toml)")
+    policy_sign.add_argument(
+        "--private-key",
+        default=None,
+        help="override ~/.napg/policy_signing_key.pem (default)",
+    )
+    policy_verify = policy_sub.add_parser(
+        "verify", help="verify a config file's signature against the committed public key"
+    )
+    policy_verify.add_argument("path", help="config file to verify")
+    policy_verify.add_argument(
+        "--public-key",
+        default=None,
+        help="override agent/config/policy_public_key.pem (default)",
+    )
+
     serve = sub.add_parser(
         "serve",
         help="run the FastAPI read endpoint that powers the Service Assurance Dashboard",
@@ -293,6 +384,15 @@ def main(argv: list[str] | None = None) -> int:
         if args.scenario == "sequencer-delay":
             return _cmd_simulate_sequencer_delay(args)
         simulate.print_help()
+        return 0
+    if args.command == "policy":
+        if args.policy_command == "generate-key":
+            return _cmd_policy_generate_key()
+        if args.policy_command == "sign":
+            return _cmd_policy_sign(args)
+        if args.policy_command == "verify":
+            return _cmd_policy_verify(args)
+        policy.print_help()
         return 0
     if args.command == "serve":
         return _cmd_serve(args)
