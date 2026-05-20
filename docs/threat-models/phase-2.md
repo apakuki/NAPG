@@ -181,6 +181,17 @@ through to the destination + value being inside the per-tx cap could pass.
 Phase 2 mitigation is layered (multi-stage gate); Phase 5 mainnet caps are
 tighter still and gas budget is bounded by dust-level wallet balance.
 
+**Live observation (2026-05-20):** the Judge's value extends beyond prompt-
+injection defense. On the first live `--execute` cycle, Stage 1 caught a
+Phase 1 misconfig where `NAPG_SAFE_CONTRACT_ADDRESS` equalled
+`CDP_AGENT_ADDRESS` — wallet self-transfers that were mechanically
+successful but semantically meaningless. Verdict: `disagree` ("to_address
+is identical to from_address ... should be sending funds to a distinct,
+pre-configured safe contract"). The remaining stages would have accepted
+the tx (denylist clean, value under cap, simulation success). Generalising:
+the Judge catches operator misconfigurations the structural stages alone
+cannot, which is independent value from its prompt-injection role.
+
 ## Threats and mitigations summary
 
 | Threat | Mitigation |
