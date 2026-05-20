@@ -18,6 +18,7 @@ export async function GET() {
   return NextResponse.json({
     authenticated: true,
     fid: session.fid,
+    address: session.address,
     exp: session.exp,
   });
 }

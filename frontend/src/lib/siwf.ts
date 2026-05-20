@@ -95,7 +95,7 @@ export type PollResult =
   | { state: "unknown" }
   | { state: "pending" }
   | { state: "verification_failed"; reason: string }
-  | { state: "completed"; fid: number };
+  | { state: "completed"; fid: number; address: `0x${string}` };
 
 export async function pollChannel(channelToken: string): Promise<PollResult> {
   const info = pendingChannels.get(channelToken);
@@ -132,7 +132,12 @@ export async function pollChannel(channelToken: string): Promise<PollResult> {
       reason: "verifier returned success=false",
     };
   }
-  return { state: "completed", fid: Number(verifyResult.fid) };
+  // `data.address` is the Ethereum address that produced the signature
+  // (custody or authAddress depending on authMethod). The relay cannot fake
+  // it — it has to match the recovered signer, which `verifySignInMessage`
+  // has just checked. Safe to seal into the session as the canonical address.
+  const address = verifyResult.data.address as `0x${string}`;
+  return { state: "completed", fid: Number(verifyResult.fid), address };
 }
 
 /** Test-only: drop the in-memory channel cache. */

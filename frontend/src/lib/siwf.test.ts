@@ -16,7 +16,9 @@ interface FakeChannel {
     message: string;
     signature: `0x${string}`;
   };
-  verify?: { success: true; fid: number } | { isError: true; error?: string };
+  verify?:
+    | { success: true; fid: number; address: `0x${string}` }
+    | { isError: true; error?: string };
 }
 
 /**
@@ -63,7 +65,8 @@ function buildFakeClient(channels: Record<string, FakeChannel>) {
         data: entry.status,
       };
     }),
-    verifySignInMessage: vi.fn(async (_args: VerifyArgs) => {
+    verifySignInMessage: vi.fn(async (args: VerifyArgs) => {
+      void args; // typed-but-unused; tests assert on the call args via the mock
       // The fake uses the channel from the most recent createChannel call.
       const ch = Object.values(channels).find((c) => c.verify);
       if (!ch?.verify) {
@@ -79,6 +82,7 @@ function buildFakeClient(channels: Record<string, FakeChannel>) {
         isError: false as const,
         success: ch.verify.success,
         fid: ch.verify.fid,
+        data: { address: ch.verify.address },
       };
     }),
   };
@@ -150,7 +154,7 @@ describe("pollChannel", () => {
     restore();
   });
 
-  it("returns 'completed' with the fid after a valid signature", async () => {
+  it("returns 'completed' with the fid + address after a valid signature", async () => {
     const { restore } = inject({
       "localhost:3000": {
         channelToken: "tok-ok",
@@ -160,7 +164,11 @@ describe("pollChannel", () => {
           message: "siwe-message",
           signature: "0xdead",
         },
-        verify: { success: true, fid: 9152 },
+        verify: {
+          success: true,
+          fid: 9152,
+          address: "0x1234567890abcdef1234567890abcdef12345678",
+        },
       },
     });
     await startChannel({
@@ -168,7 +176,11 @@ describe("pollChannel", () => {
       siweUri: "http://localhost:3000/cb",
     });
     const result = await pollChannel("tok-ok");
-    expect(result).toEqual({ state: "completed", fid: 9152 });
+    expect(result).toEqual({
+      state: "completed",
+      fid: 9152,
+      address: "0x1234567890abcdef1234567890abcdef12345678",
+    });
     restore();
   });
 
@@ -207,7 +219,11 @@ describe("pollChannel", () => {
           message: "siwe-message",
           signature: "0xdead",
         },
-        verify: { success: true, fid: 1 },
+        verify: {
+          success: true,
+          fid: 1,
+          address: "0x1234567890abcdef1234567890abcdef12345678",
+        },
       },
     });
     await startChannel({
@@ -233,7 +249,11 @@ describe("pollChannel", () => {
           message: "siwe-message",
           signature: "0xdead",
         },
-        verify: { success: true, fid: 7 },
+        verify: {
+          success: true,
+          fid: 7,
+          address: "0x1234567890abcdef1234567890abcdef12345678",
+        },
       },
     });
     const start = await startChannel({

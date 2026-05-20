@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
   const result = await pollChannel(token);
 
   if (result.state === "completed") {
-    setSessionCookie(await cookies(), result.fid);
+    setSessionCookie(await cookies(), result.fid, result.address);
   }
 
   return NextResponse.json(result);

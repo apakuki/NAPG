@@ -2,10 +2,15 @@ import { cookies } from "next/headers";
 
 import { SignIn } from "../_components/sign-in";
 import { SignOut } from "../_components/sign-out";
+import { resolveBasename, truncateAddress } from "@/lib/basenames";
 import { getSessionFromCookies } from "@/lib/session";
 
 export default async function SettingsPage() {
   const session = getSessionFromCookies(await cookies());
+  const basename = session ? await resolveBasename(session.address) : null;
+  const displayName = session
+    ? (basename ?? truncateAddress(session.address))
+    : null;
 
   return (
     <main className="flex min-h-screen flex-col items-center gap-8 bg-zinc-50 px-6 py-10 dark:bg-black">
@@ -30,12 +35,28 @@ export default async function SettingsPage() {
         {session ? (
           <div className="flex flex-col gap-3">
             <p className="text-sm text-zinc-700 dark:text-zinc-300">
-              Signed in as Farcaster fid{" "}
+              Signed in as{" "}
               <span className="font-mono text-zinc-900 dark:text-zinc-100">
-                {session.fid}
+                {displayName}
+              </span>{" "}
+              <span className="text-xs text-zinc-500 dark:text-zinc-500">
+                (fid {session.fid})
               </span>
-              .
             </p>
+            {basename ? null : (
+              <p className="text-xs text-zinc-500 dark:text-zinc-500">
+                No Basename set for this address. Claim one at{" "}
+                <a
+                  href="https://base.org/names"
+                  className="underline hover:text-blue-600 dark:hover:text-blue-400"
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  base.org/names
+                </a>
+                .
+              </p>
+            )}
             <SignOut />
           </div>
         ) : (

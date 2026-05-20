@@ -26,6 +26,7 @@ const DEFAULT_TTL_SECONDS = 24 * 60 * 60; // 24h
 
 export interface SessionPayload {
   fid: number;
+  address: `0x${string}`;
   exp: number; // unix seconds
 }
 
@@ -59,11 +60,12 @@ function signPayload(payload: string, secret: Buffer): string {
 
 export function createSessionToken(
   fid: number,
+  address: `0x${string}`,
   options: { ttlSeconds?: number; now?: () => number } = {},
 ): string {
   const now = options.now ? options.now() : Math.floor(Date.now() / 1000);
   const exp = now + (options.ttlSeconds ?? DEFAULT_TTL_SECONDS);
-  const payload: SessionPayload = { fid, exp };
+  const payload: SessionPayload = { fid, address, exp };
   const encoded = base64urlEncode(JSON.stringify(payload));
   const signature = signPayload(encoded, getSecret());
   return `${encoded}.${signature}`;
@@ -91,7 +93,12 @@ export function verifySessionToken(
   } catch {
     return null;
   }
-  if (typeof payload.fid !== "number" || typeof payload.exp !== "number") {
+  if (
+    typeof payload.fid !== "number" ||
+    typeof payload.exp !== "number" ||
+    typeof payload.address !== "string" ||
+    !/^0x[0-9a-fA-F]{40}$/.test(payload.address)
+  ) {
     return null;
   }
   const now = options.now ? options.now() : Math.floor(Date.now() / 1000);
@@ -117,12 +124,13 @@ export function sessionCookieOptions(opts: CookieOptions) {
 export function setSessionCookie(
   cookies: ResponseCookies,
   fid: number,
+  address: `0x${string}`,
   options: { ttlSeconds?: number; isProduction?: boolean } = {},
 ): void {
   const ttl = options.ttlSeconds ?? DEFAULT_TTL_SECONDS;
   const isProduction =
     options.isProduction ?? process.env.NODE_ENV === "production";
-  const token = createSessionToken(fid, { ttlSeconds: ttl });
+  const token = createSessionToken(fid, address, { ttlSeconds: ttl });
   cookies.set(
     SESSION_COOKIE_NAME,
     token,
