@@ -142,7 +142,7 @@ Wrap every signing path in AgentShield's 4-stage validation. Nothing reaches the
 - [ ] Stage 2 - Policy Validation: per-tx caps, token allowlist, destination denylist, daily-spend ceiling
 - [ ] Stage 3 - Tenderly Simulation: dry-run the tx, parse state diff, fail closed on revert or unexpected balance change
 - [ ] Stage 4 - Honeypot Detection: BUY-then-SELL simulation on the target token before any real swap
-- [ ] Centralise the four stages behind a single `validate_or_die(tx)` interface used by every action
+- [x] Centralise the four stages behind a single `validate_or_die(tx)` interface used by every action — `napg.agentshield.validate_or_die(intent)` is the pipeline. `TxIntent` is the frozen Pydantic input; `ValidationResult` aggregates per-stage `StageResult`s; `ValidationFailure` raises with the full result on any failed stage. Order: kill-switch → Intent Judge → Policy → Tenderly → Honeypot. First failure short-circuits. A `validation` audit row lands on every call (pass, fail, or kill-switched). Stage callables are injectable; production defaults raise `NotImplementedError` so the pipeline is fail-closed until each substep lands its stage. The "used by every action" wiring into `napg.actions.migrate_to_safe` + the CI grep test lands at the final Phase 2 integration substep, once all four stages exist
 - [ ] Add policy-config file with sensible testnet defaults
 - [ ] Add denylist-loader (start with a static list, leave room for a feed)
 
