@@ -307,12 +307,21 @@ scripts/stop.sh
 ```
 
 **Expected:**
-- [ ] Page renders three monitor cards: RPC heartbeat (latency, block, reorg), Aerodrome USDC/USDT (quoted rate, peg deviation, sources, latency), Morpho Blue (per-market utilisation and staleness for `WETH-USDC` and `cbBTC-USDC`).
+- [x] Page renders three monitor cards: RPC heartbeat (latency, block, reorg), Aerodrome USDC/USDT (quoted rate, peg deviation, sources, latency), Morpho Blue (per-market utilisation and staleness for `WETH-USDC` and `cbBTC-USDC`).
+- [x] Block numbers advance between consecutive `/api/status` calls roughly in line with Base's ~2 s block time.
+- [x] If the agent API isn't running, the proxy returns HTTP 502 with `cannot reach agent at ...` and the dashboard shows the red banner.
 - [ ] "Updated HH:MM:SS" header advances roughly every 10 s without a manual refresh.
 - [ ] Switching tabs away for >10 s and back: a fresh fetch fires on re-focus and the updated timestamp ticks again.
 - [ ] If `ZEROX_API_KEY` is unset, only the Aerodrome card shows `ZEROX_API_KEY not set`; the other two render normally.
-- [ ] If the agent API isn't running, the page shows a red "cannot reach agent" banner; refresh-on-page-load picks up the API once it starts.
 - [ ] Devtools console shows no errors; no CORS warnings (the dashboard only hits `localhost:3000/api/status`, never the agent directly).
+
+Verified 2026-05-20 via `scripts/start.sh` + `curl http://localhost:3000/api/status`:
+- Heartbeat returned Base Sepolia chain 84532, block 41,735,849, `reorg_detected: false`, ~700 ms latency from Alchemy. RPC URL redacted to scheme + host only.
+- Aerodrome probe quoted USDC/USDT at 0.99951 (5 bps peg deviation), route included `Aerodrome_V3` among 7 sources, liquidity available at Base mainnet block 46,225,319.
+- Morpho cards: `WETH-USDC` at 90.39 % utilisation, 36 s staleness, ~$77 M supply / $69 M borrow. `cbBTC-USDC` at 90.39 % utilisation, 18 s staleness, ~$1.35 B supply / $1.22 B borrow — matches the public "$1.4 B+ cbBTC collateral" reporting.
+- Two probes 11 s apart: Sepolia head advanced 41,735,849 → 41,735,855 (6 blocks); mainnet head 46,225,319 → 46,225,326 (7 blocks). Both consistent with ~2 s block time.
+- `/api/status` via the proxy on `:3000` returned an identical shape to the agent direct on `:8000`. `/api/health` returned `{"status": "ok"}`.
+- The auto-poll header tick, tab-switch behaviour, partial-config degrade, and devtools console check still need a real browser session and are left unchecked.
 
 ---
 
