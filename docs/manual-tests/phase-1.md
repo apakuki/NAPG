@@ -310,10 +310,10 @@ scripts/stop.sh
 - [x] Page renders three monitor cards: RPC heartbeat (latency, block, reorg), Aerodrome USDC/USDT (quoted rate, peg deviation, sources, latency), Morpho Blue (per-market utilisation and staleness for `WETH-USDC` and `cbBTC-USDC`).
 - [x] Block numbers advance between consecutive `/api/status` calls roughly in line with Base's ~2 s block time.
 - [x] If the agent API isn't running, the proxy returns HTTP 502 with `cannot reach agent at ...` and the dashboard shows the red banner.
-- [ ] "Updated HH:MM:SS" header advances roughly every 10 s without a manual refresh.
-- [ ] Switching tabs away for >10 s and back: a fresh fetch fires on re-focus and the updated timestamp ticks again.
-- [ ] If `ZEROX_API_KEY` is unset, only the Aerodrome card shows `ZEROX_API_KEY not set`; the other two render normally.
-- [ ] Devtools console shows no errors; no CORS warnings (the dashboard only hits `localhost:3000/api/status`, never the agent directly).
+- [x] "Updated HH:MM:SS" header advances roughly every 10 s without a manual refresh — `dashboard.spec.ts::auto-poll` proves the proxy is hit >=2× over 11 s.
+- [x] Switching tabs away for >10 s and back: a fresh fetch fires on re-focus and the updated timestamp ticks again — `dashboard.spec.ts::tab-visibility` simulates `visibilitychange`, asserts no requests while hidden, and a fresh request on restore.
+- [x] If `ZEROX_API_KEY` is unset, only the Aerodrome card shows `ZEROX_API_KEY not set`; the other two render normally — `dashboard.spec.ts::per-card degrade`.
+- [x] Devtools console shows no errors; no CORS warnings (the dashboard only hits `localhost:3000/api/status`, never the agent directly) — `dashboard.spec.ts::console` collects `console.error` and `pageerror` over the first render + initial fetch; asserts the array is empty.
 
 Verified 2026-05-20 via `scripts/start.sh` + `curl http://localhost:3000/api/status`:
 - Heartbeat returned Base Sepolia chain 84532, block 41,735,849, `reorg_detected: false`, ~700 ms latency from Alchemy. RPC URL redacted to scheme + host only.
@@ -321,7 +321,7 @@ Verified 2026-05-20 via `scripts/start.sh` + `curl http://localhost:3000/api/sta
 - Morpho cards: `WETH-USDC` at 90.39 % utilisation, 36 s staleness, ~$77 M supply / $69 M borrow. `cbBTC-USDC` at 90.39 % utilisation, 18 s staleness, ~$1.35 B supply / $1.22 B borrow — matches the public "$1.4 B+ cbBTC collateral" reporting.
 - Two probes 11 s apart: Sepolia head advanced 41,735,849 → 41,735,855 (6 blocks); mainnet head 46,225,319 → 46,225,326 (7 blocks). Both consistent with ~2 s block time.
 - `/api/status` via the proxy on `:3000` returned an identical shape to the agent direct on `:8000`. `/api/health` returned `{"status": "ok"}`.
-- The auto-poll header tick, tab-switch behaviour, partial-config degrade, and devtools console check still need a real browser session and are left unchecked.
+- Auto-poll cadence, tab-visibility behaviour, per-card degrade-on-error, and the devtools console check are covered by `frontend/e2e/dashboard.spec.ts` (Playwright + headless Chromium, 5 specs all passing 2026-05-20).
 
 ---
 
