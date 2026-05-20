@@ -100,20 +100,20 @@ Build the monitoring brain. Heartbeat Base Sepolia RPC, watch Aerodrome and Seam
 - [x] All Web3.py providers use HTTPS only; reject `http://` at config-load time
 - [x] Validate every RPC response against a Pydantic schema before acting on it (treat upstream as hostile)
 - [x] Anthropic API key loaded via `pydantic-settings` from `.env`; logged as `***` only; never written to the audit DB — `napg.config.Settings.anthropic_api_key`; enforced by `test_audit_row_never_contains_the_api_key` and the equivalent test on the Reasoner
-- [ ] Per-provider rate-limit on RPC calls; circuit-break to a fallback RPC on repeated failure
+- [x] Per-provider rate-limit on RPC calls; circuit-break to a fallback RPC on repeated failure — `napg.monitor.resilience` ships a token-bucket `RateLimiter`, a consecutive-failure `CircuitBreaker` with half-open recovery, and a `FailoverRpcHeartbeat` that wraps N `RpcHeartbeat` instances with their own limiter+breaker pair. `Settings.active_rpc_urls()` returns `(primary, fallback?)` so the heartbeat CLI cuts over automatically when `BASE_SEPOLIA_RPC_URL_FALLBACK` is set; primary remains sticky to keep reorg history aligned
 - [x] Testnet-only CDP wallet for Phase 1; cap balance to a known dust amount; document the address in the runbook — agent wallet is provisioned by `napg.wallet.build_agent_wallet` against the `NAPG_NETWORK=base-sepolia` configured CDP project. Address is captured in [manual test 1.6](docs/manual-tests/phase-1.md#16--simulated-sequencer-delay-end-to-end). MPC: keys never enter agent code, signing through CDP TEE only
 - [x] Audit-log writes are wrapped in a single SQLite transaction per decision (no partial rows) — `record_breaches()` uses `with self._conn:` for all-or-nothing semantics
 - [x] Add an HMAC column on each audit row signed with a separate key (cheap tamper-evidence; key in env, not DB) — `NAPG_AUDIT_HMAC_KEY` env var; key never written to the DB; live-verified in [manual test 1.7](docs/manual-tests/phase-1.md#17--audit-log-integrity)
-- [ ] Threat model: what happens if an RPC lies, if 0x returns crafted data, if Anthropic returns malformed JSON? Document the failure path for each.
+- [x] Threat model: what happens if an RPC lies, if 0x returns crafted data, if Anthropic returns malformed JSON? Document the failure path for each — [docs/threat-models/phase-1.md](docs/threat-models/phase-1.md) walks each new surface (RPC, 0x, Anthropic, audit DB, wallet, prompt cache, secrets at rest), the mitigations in place, and the residual risks deferred to Phase 2 (AgentShield) or Phase 5 (mainnet cutover)
 
 ### Tests
-- [ ] Unit tests for each monitor (RPC, pool, lending) with mocked responses, >=80% coverage
-- [ ] Unit tests for breach-threshold evaluation
-- [ ] Integration test: full pipeline from mocked sequencer-delay event to a Sepolia testnet tx
-- [ ] Playwright smoke test on the dashboard route
-- [ ] Audit-log test: every autonomous decision produces a recoverable record
-- [ ] Tamper test: flipping a byte in an audit row fails HMAC verification
-- [ ] Manual test procedures completed: [docs/manual-tests/phase-1.md](docs/manual-tests/phase-1.md)
+- [x] Unit tests for each monitor (RPC, pool, lending) with mocked responses, >=80% coverage — `tests/monitor/test_rpc.py`, `test_aerodrome.py`, `test_morpho.py`, `test_resilience.py`; coverage 100/100/99/97% on the four monitor modules
+- [x] Unit tests for breach-threshold evaluation — `tests/policy/test_breaches.py` (20 tests, `napg/policy/breaches.py` at 99%)
+- [x] Integration test: full pipeline from mocked sequencer-delay event to a Sepolia testnet tx — mocked-pipeline half: `tests/test_orchestrator.py::test_sequencer_delay_drives_migrate_dispatch` and `::test_executed_migrate_records_tx_hash` cover scenario → breach evaluator → reasoner → action with a stubbed wallet returning a tx hash. Live Sepolia tx half lives in [manual test 1.9](docs/manual-tests/phase-1.md#19--simulated-sequencer-delay-end-to-end-pipeline)
+- [ ] Playwright smoke test on the dashboard route — blocked on substep 7 (dashboard not yet built)
+- [x] Audit-log test: every autonomous decision produces a recoverable record — `tests/test_orchestrator.py::test_audit_chain_ordering_breach_then_decision_then_action` asserts every cycle writes the `breach -> decision -> action` chain; `tests/test_audit.py::test_record_single_row_and_read_back` exercises the underlying writer
+- [x] Tamper test: flipping a byte in an audit row fails HMAC verification — `tests/test_audit.py::test_verify_detects_tamper_after_triggers_dropped` (drops the append-only triggers, mutates a row, asserts `napg audit verify` flags it) plus `::test_update_blocked_by_trigger` and `::test_delete_blocked_by_trigger` for the schema-layer defence
+- [ ] Manual test procedures completed: [docs/manual-tests/phase-1.md](docs/manual-tests/phase-1.md) — 1.1, 1.2, 1.3, 1.4, 1.5, 1.7 ticked from live runs (2026-05-18/19); 1.6 and 1.9 have unchecked items pending a live Sepolia `--execute`; 1.8 is the dashboard procedure (skeleton only)
 
 ### Success criteria
 - [ ] Dashboard renders live Sepolia data without errors
