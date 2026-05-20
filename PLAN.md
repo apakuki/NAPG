@@ -171,7 +171,7 @@ Wrap every signing path in AgentShield's 4-stage validation. Nothing reaches the
 - [x] No signing path bypasses `validate_or_die` — `tests/test_codebase_invariants.py` grep test fails the build on any wallet signing-method call outside `napg.actions`, `napg.wallet`, or `napg.agentshield`
 - [x] Kill-switch verified end-to-end on Sepolia — [manual test 2.5](docs/manual-tests/phase-2.md#25--kill-switch-engages-mid-cycle) executed live 2026-05-20. Kill-switched `--execute` short-circuited before any Anthropic / Tenderly call with `kill_switch_engaged=True`, empty `stages`. Clean re-run (after fresh distinct safe address provisioned — see below) landed real Sepolia tx [`0xc696…c77c`](https://sepolia.basescan.org/tx/0xc69602fd192ea93f5df4fb485fffe48fab57340693cc725944b7133aac89c77c) at block 41,748,137 with all four stages passed. Bonus: Stage 1 (Intent Judge) caught a Phase 1 misconfig where `NAPG_SAFE_CONTRACT_ADDRESS == CDP_AGENT_ADDRESS` (wallet self-transfer was semantically meaningless); a fresh CDP wallet at `0x84C7…A840` is the new safe destination
 - [x] Phase 2 threat-model review filed — [docs/threat-models/phase-2.md](docs/threat-models/phase-2.md)
-- [ ] User signs off on Phase 2
+- [x] User signs off on Phase 2 — Samuel Apakuki Nayacakalou, 2026-05-20 (authorized in chat after Phase 2 checklist closed out, live kill-switch drill executed, and threat model addendum filed)
 
 ### Troubleshooting
 - **All transactions blocked by policy** -> caps misconfigured or env mismatch -> diff `policy.toml` against the env's intended config; run the policy unit-test suite to surface the failing rule.
