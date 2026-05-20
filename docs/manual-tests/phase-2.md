@@ -1,105 +1,194 @@
-# Manual test procedures — Phase 2 (Security Layer / AgentShield)
+# Manual tests — Phase 2 (AgentShield Security Layer)
 
-Status: **skeleton.** Procedures fill in as the 4-stage pipeline lands. Source-of-truth: [PLAN.md Phase 2](../../PLAN.md#phase-2-wk-3-security-layer).
+These procedures verify the Phase 2 security layer end to end on a real
+developer workstation. They are the human-driven complement to the unit +
+integration test suites; their job is to catch issues the test suite cannot
+reach (filesystem-level signing, real Tenderly round-trips, the kill-switch
+acting on a real operator session).
 
-Prerequisites: Phase 1 signed off. `.env` with Tenderly access key. Known-honeypot token address on Base Sepolia for negative testing.
-
----
-
-## 2.1 — Stage 1 (Intent Judge) blocks an off-goal action
-
-**Goal:** the Intent Judge refuses a tx whose intent doesn't match the agent's current goal.
-
-**Steps:** _TODO when `napg.shield.intent` lands._
-
-**Expected:**
-- [ ] A tx labelled "rescue migration" but actually swapping unrelated tokens is rejected at Stage 1.
-- [ ] Audit log records the rejection with the Judge's reasoning.
+Run them top-to-bottom after `uv sync` and before signing off on Phase 2.
 
 ---
 
-## 2.2 — Stage 2 (Policy) blocks a denylisted destination
+## 2.1  Policy keypair generation
 
-**Goal:** a tx targeting a denylisted address is rejected before simulation.
+**Procedure**
+1. `cd agent`
+2. `uv run napg policy generate-key`
 
-**Steps:** _TODO when `napg.shield.policy` lands._
+**Expected**
+- A new private key at `~/.napg/policy_signing_key.pem` with chmod 600.
+- The public key written to `agent/config/policy_public_key.pem`.
+- Re-running the command refuses to clobber the existing key (exit code 2).
 
-**Expected:**
-- [ ] Tx targeting a denylisted address fails policy and is audit-logged.
-- [ ] No Tenderly call is made (stage ordering preserved).
-
----
-
-## 2.3 — Stage 3 (Tenderly) catches an unexpected balance change
-
-**Goal:** a tx that would unexpectedly transfer the agent's full balance fails at simulation.
-
-**Steps:** _TODO when `napg.shield.simulate` lands._
-
-**Expected:**
-- [ ] Simulation returns a state diff; the analyzer flags the unexpected balance change.
-- [ ] Tx is rejected before signing.
+**Verifies:** the operator can bootstrap the signing key without leaking it
+into the repo; the loader's expected files exist; the no-overwrite guard
+works.
 
 ---
 
-## 2.4 — Stage 4 (Honeypot) rejects a known honeypot
+## 2.2  Sign + verify the shipped configs
 
-**Goal:** the BUY-then-SELL probe correctly fails on a known-bad token.
+**Procedure**
+1. `uv run napg policy sign agent/config/policy.toml`
+2. `uv run napg policy verify agent/config/policy.toml`
+3. `uv run napg policy sign agent/config/denylist.toml`
+4. `uv run napg policy verify agent/config/denylist.toml`
 
-**Steps:** _TODO when `napg.shield.honeypot` lands._
+**Expected**
+- Each `sign` writes a `.sig` next to the config.
+- Each `verify` returns JSON with the verified path.
+- Editing `policy.toml` (e.g. bump the per-tx cap) and re-running `verify`
+  *without* re-signing fails with `policy config signature did not verify
+  against the public key`.
 
-**Expected:**
-- [ ] Probe BUY simulation succeeds; SELL simulation reverts or returns unexpected balance.
-- [ ] Honeypot result is cached, keyed by the token's `codeHash`.
-
----
-
-## 2.5 — `validate_or_die` is the only signing entry point
-
-**Goal:** confirm no code path bypasses the gate.
-
-**Steps:**
-```bash
-# CI lint should already enforce this; this is a manual cross-check.
-rg -n "wallet\.(sign|send|invoke)" agent/napg/
-```
-
-**Expected:**
-- [ ] Only matches inside `agent/napg/shield/validate.py` (or wherever `validate_or_die` lives).
-- [ ] Every other module that needs to sign goes through the gate.
+**Verifies:** the round-trip works; tampering without the private key is
+rejected at load time.
 
 ---
 
-## 2.6 — Kill-switch drill
+## 2.3  Denylist blocks a tx
 
-**Goal:** engaging the kill-switch halts the next signing attempt.
+**Procedure**
+1. Edit `agent/config/denylist.toml` to add your safe-contract address.
+2. `uv run napg policy sign agent/config/denylist.toml`
+3. `uv run napg simulate sequencer-delay --execute` (or
+   `uv run napg migrate --amount-eth 0.0001 --execute`).
+4. Confirm the validator raises `ValidationFailure: AgentShield blocked tx:
+   policy: destination on denylist: ...` and *no* `action` row is written.
+5. Restore `denylist.toml`, re-sign, and confirm the cycle no longer blocks.
 
-**Steps:** _TODO when kill-switch lands._
-
-**Expected:**
-- [ ] Switch engaged; the very next decision cycle skips signing and audit-logs "kill-switch active".
-- [ ] Switch propagation under 1 second on a single-instance deployment.
+**Verifies:** Stage 2's denylist gate fires before any wallet method is
+touched; the `validation` audit row carries the reason; restoring +
+re-signing returns to a clean state.
 
 ---
 
-## 2.7 — Policy config signature enforcement
+## 2.4  Per-tx cap blocks a tx above the cap
 
-**Goal:** the loader refuses an unsigned or tampered policy config.
+**Procedure**
+1. `uv run napg migrate --amount-eth 1.0 --execute` (where the live cap is
+   0.001 ETH).
 
-**Steps:**
-```bash
-# TODO: copy policy.toml, modify a value without re-signing, restart agent.
-```
+**Expected**
+- `ValidationFailure: AgentShield blocked tx: policy: value_wei ... exceeds
+  per-tx cap ...`
+- One `validation` row in the audit DB with `passed=false`; no `action` row.
+- `uv run napg audit verify` returns `ok=true`.
 
-**Expected:**
-- [ ] Agent refuses to start; logs "policy config signature mismatch".
-- [ ] Restarting with a properly signed config works.
+**Verifies:** Stage 2's per-tx cap is enforced live; the audit chain
+survives a failed validation.
+
+---
+
+## 2.5  Kill-switch engages mid-cycle
+
+**Procedure**
+1. Start with `NAPG_KILL_SWITCH` unset.
+2. `uv run napg simulate sequencer-delay` (dry-run) — confirm it completes
+   a full cycle.
+3. `export NAPG_KILL_SWITCH=1`
+4. `uv run napg simulate sequencer-delay --execute`
+
+**Expected**
+- Step 4 raises `ValidationFailure: AgentShield: kill-switch engaged;
+  signing blocked` *before* any Anthropic or Tenderly call. The
+  `validation` audit row carries `kill_switch_engaged=true` and empty
+  `stages`.
+- `unset NAPG_KILL_SWITCH` followed by re-running step 4 proceeds normally.
+
+**Verifies:** the env-var kill-switch acts on the next cycle without
+restart; the audit row distinguishes a kill-switched failure from a stage
+failure.
+
+---
+
+## 2.6  Live Tenderly simulation round-trip
+
+**Procedure**
+1. Confirm `TENDERLY_ACCOUNT_SLUG`, `TENDERLY_PROJECT_SLUG`, and
+   `TENDERLY_ACCESS_KEY` are populated in `.env`.
+2. `uv run python -c "from napg.config import Settings; from
+   napg.agentshield.stages.tenderly import TenderlySimulator; from
+   napg.agentshield.pipeline import TxIntent; s = Settings(); sim =
+   TenderlySimulator(account_slug=s.tenderly_account_slug,
+   project_slug=s.tenderly_project_slug,
+   access_key=s.tenderly_access_key, network_id=84532); r =
+   sim.simulate(TxIntent(action='migrate_to_safe', from_address='0x' +
+   'a'*40, to_address=s.safe_contract_address, value_wei=1000));
+   print(r['transaction']['status'], r['transaction']['gas_used'])"`
+
+**Expected**
+- A live `True 21000` (or similar) printed to stdout.
+- The Tenderly dashboard shows no saved simulation (the call is ephemeral;
+  `save=False`).
+
+**Verifies:** Tenderly creds are valid; the response shape still matches
+the parser; gas estimate falls within the native-transfer window.
+
+---
+
+## 2.7  Tenderly key scoping
+
+**Procedure**
+1. Open the Tenderly dashboard, navigate to API access keys.
+2. Confirm the key in `.env` is scoped to a single project and uses the
+   `Simulate-only` permission (or the narrowest read-only equivalent).
+3. Rotate the key as part of Phase 2 sign-off (best practice; the live key
+   has been used by AgentShield during phase build-out).
+
+**Expected**
+- The key permission scope is read-only / simulate-only.
+- After rotation, the previous key is revoked; the new key is added to
+  `.env` and a manual sim (`napg`-driven or curl) succeeds.
+
+**Verifies:** the security checklist item on Tenderly key scoping; the
+rotation runbook works.
+
+---
+
+## 2.8  CI invariant guard
+
+**Procedure**
+1. `uv run pytest tests/test_codebase_invariants.py -v`
+2. Temporarily add `wallet.native_transfer(...)` to a non-allowlisted
+   module (e.g. `napg/scenarios.py`) and re-run.
+
+**Expected**
+- Step 1 passes (two tests).
+- Step 2 fails with `AssertionError: Wallet signing call outside
+  napg.actions / napg.agentshield: napg/scenarios.py:NN: ...`
+- After reverting the change, the suite passes again.
+
+**Verifies:** the CI grep test actually catches a wallet-bypass violation;
+it is not silently no-op.
+
+---
+
+## 2.9  End-to-end CLI: --execute under all stages clean
+
+**Procedure**
+1. Confirm `NAPG_KILL_SWITCH` is unset, `.env` is populated, configs are
+   signed, denylist does *not* contain the safe address.
+2. `uv run napg simulate sequencer-delay --amount-eth 0.0001 --execute`
+
+**Expected**
+- The four stages pass in order; one `validation` row + one `action` row
+  land in the audit DB.
+- Final `action` row contains the real Sepolia tx hash and `status:
+  success`.
+- `uv run napg audit verify` returns `ok=true`.
+
+**Verifies:** the full Phase 2 pipeline runs end to end without regressing
+any Phase 1 capability.
 
 ---
 
 ## Sign-off checklist
 
 - [ ] All procedures completed.
-- [ ] Phase 2 threat-model review filed.
-- [ ] Security and Troubleshooting sections in [PLAN.md](../../PLAN.md) reviewed.
+- [ ] Phase 2 threat-model review filed
+      ([docs/threat-models/phase-2.md](../threat-models/phase-2.md)).
+- [ ] Security and Troubleshooting sections in
+      [PLAN.md](../../PLAN.md#phase-2-wk-3-security-layer) reviewed.
 - [ ] User has signed off.
