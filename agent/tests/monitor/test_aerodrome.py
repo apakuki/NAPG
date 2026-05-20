@@ -188,3 +188,43 @@ def test_response_string_integers_coerce():
 
     assert probe.buy_amount == 9_999_000_000
     assert probe.block_number == 987_654_321
+
+
+def test_tick_trips_breaker_on_http_error_and_short_circuits():
+    from napg.monitor.resilience import CircuitBreaker, CircuitOpen
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(429, text="rate limited")
+
+    breaker = CircuitBreaker(failure_threshold=1, cooldown_s=60)
+    monitor = AerodromeMonitor(
+        api_key="k",
+        http=_client(handler),
+        breaker=breaker,
+    )
+
+    with pytest.raises(RuntimeError, match="429"):
+        monitor.tick()
+
+    with pytest.raises(CircuitOpen):
+        monitor.tick()
+
+
+def test_tick_calls_limiter_acquire():
+    from napg.monitor.resilience import RateLimiter
+
+    acquired: list[int] = []
+
+    class _Counting(RateLimiter):
+        def acquire(self) -> None:
+            acquired.append(1)
+            super().acquire()
+
+    monitor = AerodromeMonitor(
+        api_key="k",
+        http=_client(lambda _r: httpx.Response(200, json=_ok_response())),
+        limiter=_Counting(rate_per_sec=1000, capacity=1000),
+    )
+
+    monitor.tick()
+    assert acquired == [1]

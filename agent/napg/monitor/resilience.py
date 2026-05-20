@@ -24,9 +24,11 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable, Iterable
-from typing import Literal
+from typing import Literal, TypeVar
 
 from napg.monitor.rpc import HeartbeatResult, RpcHeartbeat
+
+T = TypeVar("T")
 
 
 class CircuitOpen(RuntimeError):
@@ -124,6 +126,35 @@ class CircuitBreaker:
         self._failures += 1
         if self._failures >= self._threshold:
             self._opened_at = self._now()
+
+
+def gated_call(
+    fn: Callable[[], T],
+    *,
+    limiter: RateLimiter | None = None,
+    breaker: CircuitBreaker | None = None,
+) -> T:
+    """Run `fn` through an optional limiter + breaker.
+
+    The same shape that `FailoverRpcHeartbeat` uses per-provider, exposed as a
+    standalone helper so monitors that don't fit the failover model (Morpho's
+    single-RPC poll, Aerodrome's single 0x endpoint) can still gate their
+    outbound calls. Order: breaker first (fail-fast if open), then limiter
+    (cap throughput), then the call; success/failure records on the breaker.
+    """
+    if breaker is not None:
+        breaker.before_call()
+    if limiter is not None:
+        limiter.acquire()
+    try:
+        result = fn()
+    except Exception:
+        if breaker is not None:
+            breaker.record_failure()
+        raise
+    if breaker is not None:
+        breaker.record_success()
+    return result
 
 
 class _Provider:
@@ -224,4 +255,5 @@ __all__ = [
     "CircuitOpen",
     "FailoverRpcHeartbeat",
     "RateLimiter",
+    "gated_call",
 ]

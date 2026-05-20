@@ -12,6 +12,7 @@ from napg.monitor.resilience import (
     CircuitOpen,
     FailoverRpcHeartbeat,
     RateLimiter,
+    gated_call,
 )
 from napg.monitor.rpc import RpcHeartbeat
 
@@ -270,6 +271,61 @@ def test_failover_raises_when_all_providers_fail():
 
     with pytest.raises(RuntimeError, match="all RPC providers failed"):
         pool.tick()
+
+
+def test_gated_call_with_no_limiter_or_breaker_just_runs_fn():
+    result = gated_call(lambda: 42)
+    assert result == 42
+
+
+def test_gated_call_invokes_limiter_acquire_before_fn():
+    clock = _FakeClock()
+    limiter = RateLimiter(rate_per_sec=1, capacity=1, now=clock.time, sleep=clock.sleep)
+
+    limiter.acquire()  # drain the bucket
+    gated_call(lambda: "ok", limiter=limiter)
+
+    # Second call had to sleep because the bucket was empty.
+    assert clock.sleeps == [pytest.approx(1.0)]
+
+
+def test_gated_call_records_breaker_success():
+    breaker = CircuitBreaker(failure_threshold=2, cooldown_s=10)
+    breaker.record_failure()
+    assert breaker.consecutive_failures == 1
+
+    gated_call(lambda: "ok", breaker=breaker)
+    assert breaker.consecutive_failures == 0
+
+
+def test_gated_call_records_breaker_failure_and_reraises():
+    breaker = CircuitBreaker(failure_threshold=2, cooldown_s=10)
+
+    class _Boom(Exception):
+        pass
+
+    def _explode() -> None:
+        raise _Boom("upstream hated us")
+
+    with pytest.raises(_Boom):
+        gated_call(_explode, breaker=breaker)
+    assert breaker.consecutive_failures == 1
+
+
+def test_gated_call_raises_circuit_open_without_invoking_fn():
+    breaker = CircuitBreaker(failure_threshold=1, cooldown_s=10)
+    breaker.record_failure()  # trip
+    assert breaker.state == "open"
+
+    invocations = 0
+
+    def _fn() -> None:
+        nonlocal invocations
+        invocations += 1
+
+    with pytest.raises(CircuitOpen):
+        gated_call(_fn, breaker=breaker)
+    assert invocations == 0
 
 
 def test_failover_runs_rate_limiter_before_call():

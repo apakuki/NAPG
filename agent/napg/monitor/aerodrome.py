@@ -24,6 +24,8 @@ import time
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
+from napg.monitor.resilience import CircuitBreaker, RateLimiter, gated_call
+
 USDC_BASE_MAINNET = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
 USDT_BASE_MAINNET = "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2"
 BASE_CHAIN_ID = 8453
@@ -102,6 +104,8 @@ class AerodromeMonitor:
         buy_token: str = USDT_BASE_MAINNET,
         sell_amount: int = DEFAULT_PROBE_AMOUNT_USDC,
         timeout: float = 5.0,
+        limiter: RateLimiter | None = None,
+        breaker: CircuitBreaker | None = None,
     ) -> None:
         if not api_key:
             raise ValueError("0x API key is required (set ZEROX_API_KEY in .env)")
@@ -112,6 +116,8 @@ class AerodromeMonitor:
         self._buy_token = buy_token
         self._sell_amount = sell_amount
         self._http = http if http is not None else httpx.Client(timeout=timeout)
+        self._limiter = limiter
+        self._breaker = breaker
 
     def tick(self) -> LiquidityProbe:
         params = {
@@ -122,14 +128,17 @@ class AerodromeMonitor:
         }
         headers = {"0x-api-key": self._api_key, "0x-version": ZEROX_API_VERSION}
 
-        start = time.perf_counter()
-        response = self._http.get(ZEROX_PRICE_URL, params=params, headers=headers)
-        latency_ms = (time.perf_counter() - start) * 1000.0
+        def _fetch() -> httpx.Response:
+            r = self._http.get(ZEROX_PRICE_URL, params=params, headers=headers)
+            if r.status_code != 200:
+                # Raised inside gated_call so the breaker records this as a failure
+                # — a 429 or 5xx from 0x is exactly what the breaker should react to.
+                raise RuntimeError(f"0x price API returned {r.status_code}: {r.text[:200]}")
+            return r
 
-        if response.status_code != 200:
-            raise RuntimeError(
-                f"0x price API returned {response.status_code}: {response.text[:200]}"
-            )
+        start = time.perf_counter()
+        response = gated_call(_fetch, limiter=self._limiter, breaker=self._breaker)
+        latency_ms = (time.perf_counter() - start) * 1000.0
 
         parsed = ZeroExPriceResponse.model_validate(response.json())
         return _build_probe(
