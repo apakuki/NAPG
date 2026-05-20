@@ -101,6 +101,27 @@ survives a failed validation.
 restart; the audit row distinguishes a kill-switched failure from a stage
 failure.
 
+**Live run 2026-05-20:**
+- Kill-switched `--execute` raised `ValidationFailure: AgentShield: kill-switch
+  engaged; signing blocked` *before* any Anthropic Intent Judge or Tenderly
+  call. Validation audit row: `passed=False`, `kill_switch_engaged=True`,
+  `stages=[]`. Wallet `native_transfer` not invoked.
+- First clean-path attempt was correctly blocked by **Stage 1 Intent Judge**
+  because `NAPG_SAFE_CONTRACT_ADDRESS` was set to the same address as
+  `CDP_AGENT_ADDRESS` (a Phase 1 misconfig — wallet self-transfers were
+  mechanically successful but semantically meaningless). Judge verdict
+  `disagree`: "to_address is identical to from_address ... should be sending
+  funds to a distinct, pre-configured safe contract, not back to the same
+  originating address." Validation row: `passed=False`, `stages=[(intent_judge,
+  False)]`.
+- Provisioned a fresh CDP-managed Sepolia wallet at
+  `0x84C7C05D225D46646B9484Af25D138aD9132A840` as the new safe destination.
+- Re-ran clean: all four stages passed (`[(intent_judge, True), (policy,
+  True), (tenderly, True), (honeypot, True)]`), real Sepolia tx
+  [`0xc69602fd192ea93f5df4fb485fffe48fab57340693cc725944b7133aac89c77c`](https://sepolia.basescan.org/tx/0xc69602fd192ea93f5df4fb485fffe48fab57340693cc725944b7133aac89c77c)
+  landed at block 41,748,137 with `status: success`. `napg audit verify`
+  returned `ok=true` over all 19 rows.
+
 ---
 
 ## 2.6  Live Tenderly simulation round-trip
