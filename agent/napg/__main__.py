@@ -8,6 +8,7 @@ import sys
 
 from napg import __version__
 from napg.actions import migrate_to_safe
+from napg.api import create_app
 from napg.audit import AuditLog
 from napg.audit import verify as audit_verify
 from napg.config import Settings
@@ -180,6 +181,15 @@ class _DryRunWallet:
         raise RuntimeError("_DryRunWallet has no receipts; rerun with --execute")
 
 
+def _cmd_serve(args: argparse.Namespace) -> int:
+    """Run the FastAPI app via uvicorn. Imported lazily so tests don't need uvicorn."""
+    import uvicorn  # lazy: keeps uvicorn out of the import path for `napg` consumers
+
+    app = create_app()
+    uvicorn.run(app, host=args.host, port=args.port, log_level=args.log_level)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="napg", description="NetAssure Protocol Guardian")
     parser.add_argument("--version", action="version", version=f"napg {__version__}")
@@ -247,6 +257,19 @@ def main(argv: list[str] | None = None) -> int:
         help="actually submit the migration tx if chosen (default: dry-run only)",
     )
 
+    serve = sub.add_parser(
+        "serve",
+        help="run the FastAPI read endpoint that powers the Service Assurance Dashboard",
+    )
+    serve.add_argument("--host", default="127.0.0.1", help="bind host (default: 127.0.0.1)")
+    serve.add_argument("--port", type=int, default=8000, help="bind port (default: 8000)")
+    serve.add_argument(
+        "--log-level",
+        default="info",
+        choices=("debug", "info", "warning", "error"),
+        help="uvicorn log level (default: info)",
+    )
+
     args = parser.parse_args(argv)
     if args.command == "heartbeat":
         return _cmd_heartbeat()
@@ -271,6 +294,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_simulate_sequencer_delay(args)
         simulate.print_help()
         return 0
+    if args.command == "serve":
+        return _cmd_serve(args)
 
     parser.print_help()
     return 0
