@@ -197,7 +197,7 @@ Make NAPG discoverable in the Base App and authable without a password.
 
 ### Security
 - [ ] SIWF signature verified server-side on every authenticated request; never trust the client's `fid` claim
-- [ ] Strict CSP, no `unsafe-inline`; nonces for any required inline scripts
+- [x] Strict CSP, no `unsafe-inline`; nonces for any required inline scripts — `frontend/src/proxy.ts` (Next.js 16's renamed middleware) generates a per-request CSP nonce; production `script-src` is `'self' 'nonce-XXX' 'strict-dynamic'` and `style-src` is `'self' 'nonce-XXX'`; dev mode adds `'unsafe-eval'` (React devtools) + `'unsafe-inline'` styles (Tailwind 4 dev) per the bundled Next.js docs. Plus `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, restrictive `Permissions-Policy`. Two e2e tests in `frontend/e2e/csp.spec.ts` confirm directives + per-request nonce uniqueness
 - [ ] Session cookies: `HttpOnly`, `Secure`, `SameSite=Lax`, narrowest `Domain` possible
 - [ ] No session tokens, signed payloads, or wallet material in `localStorage` or `sessionStorage`
 - [ ] CSRF token (double-submit cookie or origin check) on every state-changing API call
