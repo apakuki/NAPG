@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     safe_contract_address: str | None = Field(default=None, alias="NAPG_SAFE_CONTRACT_ADDRESS")
     audit_db_path: str = Field(default="./audit.db", alias="NAPG_AUDIT_DB")
     audit_hmac_key: str | None = Field(default=None, alias="NAPG_AUDIT_HMAC_KEY")
+    tenderly_account_slug: str | None = Field(default=None, alias="TENDERLY_ACCOUNT_SLUG")
+    tenderly_project_slug: str | None = Field(default=None, alias="TENDERLY_PROJECT_SLUG")
+    tenderly_access_key: str | None = Field(default=None, alias="TENDERLY_ACCESS_KEY")
 
     @field_validator(
         "base_sepolia_rpc_url",

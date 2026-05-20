@@ -26,7 +26,7 @@ _HASH_RE = re.compile(r"^0x[0-9a-f]{64}$")
 
 def _normalise_hash(value: Any) -> str:
     """Accept bytes, HexBytes, or str and return a lowercase 0x-prefixed 32-byte hex string."""
-    if isinstance(value, (bytes, bytearray)):
+    if isinstance(value, bytes | bytearray):
         return "0x" + bytes(value).hex()
     if isinstance(value, str):
         text = value.lower()
