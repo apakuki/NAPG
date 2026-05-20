@@ -227,12 +227,14 @@ uv run python -m napg audit verify
 ```
 
 **Expected:**
-- [ ] `wallet show` prints a `0x`-prefixed agent address, a `balance_wei` value, and `network: base-sepolia`.
-- [ ] The dry-run output is an `ActionRecord` with `dry_run=true`, no `tx_hash`, no `block_number`.
-- [ ] The `--execute` output is an `ActionRecord` with `dry_run=false`, a real `tx_hash`, a `block_number`, and `status=success`.
-- [ ] The tx hash is visible on Base Sepolia explorer (https://sepolia.basescan.org) with the correct from/to/value.
-- [ ] `napg audit verify` reports `total_rows: 2`, `tampered: []`, exit code 0.
-- [ ] `grep -a "$CDP_WALLET_SECRET" ./audit.db` finds nothing (the wallet secret never lands in the DB).
+- [x] `wallet show` prints a `0x`-prefixed agent address, a `balance_wei` value, and `network: base-sepolia`.
+- [x] The dry-run output is an `ActionRecord` with `dry_run=true`, no `tx_hash`, no `block_number`.
+- [ ] The `--execute` output is an `ActionRecord` with `dry_run=false`, a real `tx_hash`, a `block_number`, and `status=success`. _Blocked on a funded Base Sepolia wallet._
+- [ ] The tx hash is visible on Base Sepolia explorer (https://sepolia.basescan.org) with the correct from/to/value. _Blocked on the live `--execute`._
+- [x] `napg audit verify` reports `tampered: []`, exit code 0 (row count grew with the dry-run runs; live `--execute` adds a second action row).
+- [x] `grep -a "$CDP_WALLET_SECRET" ./audit.db` finds nothing (the wallet secret never lands in the DB).
+
+Verified 2026-05-20 dry-run half: `wallet show` printed agent address `0xD7DeE1AddD6283496BD8f369A603967557D6ab8C` with `balance_wei: "0"` (unfunded, so the live `--execute` half stays blocked). `migrate --amount-eth 0.001` (no `--execute`) returned an ActionRecord with `dry_run: true`, `tx_hash: null`, `block_number: null`, and `value_wei: 1000000000000000`. `napg audit verify` returned `{"total_rows": 1, "tampered": []}` exit 0 on this run, then `{"total_rows": 7, "tampered": []}` after 1.9 dry-run added scenario + 3 breaches + decision + action. `grep -a` against the DB for `CDP_WALLET_SECRET`, `CDP_API_KEY_PRIVATE_KEY`, `ANTHROPIC_API_KEY`, and `NAPG_AUDIT_HMAC_KEY` all returned no hits.
 
 The "agent detects a simulated sequencer delay and migrates testnet funds" milestone closes in [substep 9](#19--simulated-sequencer-delay-end-to-end-pipeline) once the heartbeat probe → breach evaluator → reasoner → action pipeline is wired end-to-end.
 
@@ -351,14 +353,16 @@ uv run python -m napg audit verify
 ```
 
 **Expected:**
-- [ ] The dry-run report's `breaches` list contains `reorg_is_breach`, `block_age_seconds_max`, and `rpc_latency_ms_max`.
-- [ ] The `decision.intent` is `migrate_to_safe`. `supporting_breaches` cites the reorg.
-- [ ] The dry-run `action.dry_run` is `true`, `tx_hash` is `null`, `block_number` is `null`.
-- [ ] The first `audit verify` reports `ok: true` and `total_rows: 5` (scenario + 3 breaches + decision + action).
-- [ ] The live (`--execute`) `action.dry_run` is `false`, `tx_hash` is a real Sepolia tx, `status: success`.
-- [ ] That tx appears on https://sepolia.basescan.org with the agent address as `from` and `NAPG_SAFE_CONTRACT_ADDRESS` as `to`.
-- [ ] The second `audit verify` reports `ok: true` and the new total is the dry-run total plus 5 more rows.
-- [ ] `grep -a "$ANTHROPIC_API_KEY" ./audit.db` and `grep -a "$CDP_WALLET_SECRET" ./audit.db` find nothing.
+- [x] The dry-run report's `breaches` list contains `reorg_is_breach`, `block_age_seconds_max`, and `rpc_latency_ms_max`.
+- [x] The `decision.intent` is `migrate_to_safe`. `supporting_breaches` cites the reorg.
+- [x] The dry-run `action.dry_run` is `true`, `tx_hash` is `null`, `block_number` is `null`.
+- [x] The first `audit verify` reports `ok: true` (row count grew by 5 from the 1.9 dry-run: scenario + 3 breaches + decision + action).
+- [ ] The live (`--execute`) `action.dry_run` is `false`, `tx_hash` is a real Sepolia tx, `status: success`. _Blocked on a funded Base Sepolia wallet._
+- [ ] That tx appears on https://sepolia.basescan.org with the agent address as `from` and `NAPG_SAFE_CONTRACT_ADDRESS` as `to`. _Blocked on the live `--execute`._
+- [ ] The second `audit verify` reports `ok: true` and the new total is the dry-run total plus 5 more rows. _Blocked on the live `--execute`._
+- [x] `grep -a "$ANTHROPIC_API_KEY" ./audit.db` and `grep -a "$CDP_WALLET_SECRET" ./audit.db` find nothing.
+
+Verified 2026-05-20 dry-run half against live Claude Opus 4.7: three breaches (`rpc_latency_ms_max` 4500/2000, `block_age_seconds_max` 600/30, `reorg_is_breach`), `decision.intent=migrate_to_safe`, `supporting_breaches=[reorg_is_breach, rpc_latency_ms_max, block_age_seconds_max]`, confidence 0.97, rationale cited the decision-matrix rule 2 (reorg) and rule 6 (heartbeat degradation) by name. Cache metadata: `input_tokens=1245`, `cache_creation_input_tokens=2406`, `cache_read_input_tokens=0` (cold call — the 1.5 cache rolled because of the gap and fresh prompt prefix). Dry-run action recorded with `value_wei: 1000000000000000`, `tx_hash: null`. `napg audit verify` returned `{"total_rows": 7, "tampered": []}` exit 0 across the combined 1.6+1.9 dry-run rows.
 
 The first matching reasoning-matrix rule is rule 2 (reorg). If you set `--no-reorg`, the cycle should instead choose `pause_for_investigation` and no `action` row should appear. That alternate path is exercised by `tests/test_orchestrator.py::test_pause_intent_writes_decision_but_no_action`.
 
