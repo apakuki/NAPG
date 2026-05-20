@@ -253,4 +253,11 @@ def test_executed_migrate_records_tx_hash(tmp_path: Path) -> None:
     assert report.action.dry_run is False
     assert report.action.tx_hash == TX_HASH
     assert report.action.status == "success"
-    wallet.native_transfer.assert_called_once_with(to=SAFE_ADDR, value="5000")
+    # value is converted wei -> whole-ether Decimal to match CdpEvmWalletProvider's
+    # native_transfer signature.
+    from decimal import Decimal
+
+    wallet.native_transfer.assert_called_once()
+    kwargs = wallet.native_transfer.call_args.kwargs
+    assert kwargs["to"] == SAFE_ADDR
+    assert kwargs["value"] == Decimal("5000") / Decimal(10**18)
