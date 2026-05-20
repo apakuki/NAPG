@@ -288,14 +288,31 @@ Verified 2026-05-19: naive `UPDATE` errored with `audit_log is append-only` (exi
 
 ## 1.8 — Dashboard renders live data
 
-**Goal:** the Next.js dashboard shows real Sepolia data from the agent's FastAPI endpoint.
+**Goal:** the Next.js dashboard shows real Base data from the agent's FastAPI endpoint, refreshes every 10 s, and degrades per-card when an env key is missing.
 
-**Steps:** _TODO when dashboard + API are wired._
+**Prerequisites:** `.env` populated with `BASE_SEPOLIA_RPC_URL` (heartbeat), `BASE_RPC_URL` (Morpho mainnet), and `ZEROX_API_KEY` (Aerodrome). The Anthropic/CDP keys are not exercised by this test.
+
+**Steps:**
+```bash
+# From the repo root, with .env populated.
+scripts/start.sh
+# Dashboard at http://localhost:3000
+# Agent API at http://127.0.0.1:8000/api/status (proxy target)
+
+# In another shell, hit the proxy directly to confirm shape.
+curl -s http://localhost:3000/api/status | jq
+
+# Stop both processes.
+scripts/stop.sh
+```
 
 **Expected:**
-- [ ] Page renders monitor cards for Aerodrome USDC/USDbC and the three Seamless markets.
-- [ ] Numbers update on refresh.
-- [ ] Devtools console shows no errors; no CORS warnings.
+- [ ] Page renders three monitor cards: RPC heartbeat (latency, block, reorg), Aerodrome USDC/USDT (quoted rate, peg deviation, sources, latency), Morpho Blue (per-market utilisation and staleness for `WETH-USDC` and `cbBTC-USDC`).
+- [ ] "Updated HH:MM:SS" header advances roughly every 10 s without a manual refresh.
+- [ ] Switching tabs away for >10 s and back: a fresh fetch fires on re-focus and the updated timestamp ticks again.
+- [ ] If `ZEROX_API_KEY` is unset, only the Aerodrome card shows `ZEROX_API_KEY not set`; the other two render normally.
+- [ ] If the agent API isn't running, the page shows a red "cannot reach agent" banner; refresh-on-page-load picks up the API once it starts.
+- [ ] Devtools console shows no errors; no CORS warnings (the dashboard only hits `localhost:3000/api/status`, never the agent directly).
 
 ---
 
