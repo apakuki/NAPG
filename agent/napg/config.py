@@ -27,7 +27,11 @@ class Settings(BaseSettings):
 
     network: Network = Field(default="base-sepolia", alias="NAPG_NETWORK")
     base_sepolia_rpc_url: str | None = Field(default=None, alias="BASE_SEPOLIA_RPC_URL")
+    base_sepolia_rpc_url_fallback: str | None = Field(
+        default=None, alias="BASE_SEPOLIA_RPC_URL_FALLBACK"
+    )
     base_rpc_url: str | None = Field(default=None, alias="BASE_RPC_URL")
+    base_rpc_url_fallback: str | None = Field(default=None, alias="BASE_RPC_URL_FALLBACK")
     zerox_api_key: str | None = Field(default=None, alias="ZEROX_API_KEY")
     anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
     cdp_api_key_name: str | None = Field(default=None, alias="CDP_API_KEY_NAME")
@@ -38,7 +42,12 @@ class Settings(BaseSettings):
     audit_db_path: str = Field(default="./audit.db", alias="NAPG_AUDIT_DB")
     audit_hmac_key: str | None = Field(default=None, alias="NAPG_AUDIT_HMAC_KEY")
 
-    @field_validator("base_sepolia_rpc_url", "base_rpc_url")
+    @field_validator(
+        "base_sepolia_rpc_url",
+        "base_sepolia_rpc_url_fallback",
+        "base_rpc_url",
+        "base_rpc_url_fallback",
+    )
     @classmethod
     def _require_https(cls, value: str | None) -> str | None:
         if value is None or value == "":
@@ -48,10 +57,18 @@ class Settings(BaseSettings):
         return value
 
     def active_rpc_url(self) -> str:
-        url = self.base_rpc_url if self.network == "base-mainnet" else self.base_sepolia_rpc_url
-        if not url:
+        return self.active_rpc_urls()[0]
+
+    def active_rpc_urls(self) -> tuple[str, ...]:
+        """Return (primary, fallback?) for the active network. Primary required."""
+        if self.network == "base-mainnet":
+            primary, fallback = self.base_rpc_url, self.base_rpc_url_fallback
+            env_hint = "BASE_RPC_URL"
+        else:
+            primary, fallback = self.base_sepolia_rpc_url, self.base_sepolia_rpc_url_fallback
+            env_hint = "BASE_SEPOLIA_RPC_URL"
+        if not primary:
             raise RuntimeError(
-                f"No RPC URL configured for network={self.network}. "
-                "Set BASE_SEPOLIA_RPC_URL or BASE_RPC_URL in .env."
+                f"No RPC URL configured for network={self.network}. Set {env_hint} in .env."
             )
-        return url
+        return (primary, fallback) if fallback else (primary,)

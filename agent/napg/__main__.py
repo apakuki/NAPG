@@ -13,6 +13,7 @@ from napg.audit import verify as audit_verify
 from napg.config import Settings
 from napg.monitor.aerodrome import AerodromeMonitor
 from napg.monitor.morpho import MorphoMonitor
+from napg.monitor.resilience import FailoverRpcHeartbeat
 from napg.monitor.rpc import RpcHeartbeat
 from napg.orchestrator import run_cycle
 from napg.policy.breaches import load_thresholds
@@ -23,9 +24,10 @@ from napg.wallet import build_agent_wallet
 
 def _cmd_heartbeat() -> int:
     settings = Settings()
-    rpc_url = settings.active_rpc_url()
-    heart = RpcHeartbeat(rpc_url)
-    result = heart.tick()
+    urls = settings.active_rpc_urls()
+    hearts = [RpcHeartbeat(u) for u in urls]
+    pool = FailoverRpcHeartbeat(hearts)
+    result = pool.tick()
     print(result.model_dump_json(indent=2))
     return 0
 
@@ -86,13 +88,9 @@ def _cmd_wallet_show() -> int:
 def _cmd_migrate(args: argparse.Namespace) -> int:
     settings = Settings()
     if not settings.safe_contract_address:
-        raise RuntimeError(
-            "NAPG_SAFE_CONTRACT_ADDRESS is not set; migration target unknown."
-        )
+        raise RuntimeError("NAPG_SAFE_CONTRACT_ADDRESS is not set; migration target unknown.")
     if not settings.audit_hmac_key:
-        raise RuntimeError(
-            "NAPG_AUDIT_HMAC_KEY is not set; refusing to act without audit logging."
-        )
+        raise RuntimeError("NAPG_AUDIT_HMAC_KEY is not set; refusing to act without audit logging.")
 
     wallet = build_agent_wallet(settings)
     safe = args.to or settings.safe_contract_address
@@ -122,9 +120,7 @@ def _cmd_simulate_sequencer_delay(args: argparse.Namespace) -> int:
     if not settings.anthropic_api_key:
         raise RuntimeError("ANTHROPIC_API_KEY is not set; reasoning cannot run.")
     if not settings.audit_hmac_key:
-        raise RuntimeError(
-            "NAPG_AUDIT_HMAC_KEY is not set; refusing to act without audit logging."
-        )
+        raise RuntimeError("NAPG_AUDIT_HMAC_KEY is not set; refusing to act without audit logging.")
     if not settings.safe_contract_address:
         raise RuntimeError("NAPG_SAFE_CONTRACT_ADDRESS is not set; migration target unknown.")
 
