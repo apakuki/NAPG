@@ -255,12 +255,14 @@ def test_migrate_execute_flips_dry_run_off(tmp_path) -> None:
     with (
         patch.object(cli, "Settings", return_value=fake_settings),
         patch.object(cli, "build_agent_wallet", return_value=MagicMock()),
+        patch.object(cli, "build_production_validator", return_value=MagicMock()),
         patch.object(cli, "migrate_to_safe", return_value=fake_record) as action,
     ):
         cli.main(["migrate", "--amount-eth", "0.001", "--execute"])
 
     _, kwargs = action.call_args
     assert kwargs["dry_run"] is False
+    assert kwargs["validator"] is not None
 
 
 def test_migrate_requires_safe_address() -> None:

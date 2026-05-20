@@ -16,6 +16,7 @@ from napg.agentshield.policy import (
     sign_file,
     verify_file,
 )
+from napg.agentshield.production import build_production_validator
 from napg.api import create_app
 from napg.audit import AuditLog
 from napg.audit import verify as audit_verify
@@ -106,12 +107,19 @@ def _cmd_migrate(args: argparse.Namespace) -> int:
     value_wei = int(float(args.amount_eth) * 10**18)
 
     with AuditLog(settings.audit_db_path, hmac_key=settings.audit_hmac_key) as log:
+        validator = build_production_validator(settings, audit_log=log) if args.execute else None
         record = migrate_to_safe(
             wallet,
             safe,
             value_wei,
             dry_run=not args.execute,
             audit_log=log,
+            validator=validator,
+            rationale=(
+                "operator-initiated migration via `napg migrate --execute`"
+                if args.execute
+                else "operator dry-run via `napg migrate`"
+            ),
         )
 
     print(record.model_dump_json(indent=2))
@@ -152,6 +160,7 @@ def _cmd_simulate_sequencer_delay(args: argparse.Namespace) -> int:
         )
         wallet = build_agent_wallet(settings) if args.execute else _DryRunWallet(settings)
         reasoner = Reasoner(api_key=settings.anthropic_api_key, audit_log=log)
+        validator = build_production_validator(settings, audit_log=log) if args.execute else None
         report = run_cycle(
             reasoner=reasoner,
             audit_log=log,
@@ -161,6 +170,7 @@ def _cmd_simulate_sequencer_delay(args: argparse.Namespace) -> int:
             safe_address=settings.safe_contract_address,
             value_wei=value_wei,
             dry_run=not args.execute,
+            validator=validator,
         )
 
     print(report.model_dump_json(indent=2))
