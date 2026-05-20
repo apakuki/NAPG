@@ -57,9 +57,7 @@ def test_execute_path_submits_and_captures_receipt() -> None:
 
 def test_receipt_status_zero_reports_failure() -> None:
     wallet = _wallet()
-    wallet.wait_for_transaction_receipt.return_value = SimpleNamespace(
-        block_number=1, status=0
-    )
+    wallet.wait_for_transaction_receipt.return_value = SimpleNamespace(block_number=1, status=0)
 
     record = migrate_to_safe(wallet, SAFE, 1, dry_run=False)
     assert record.status == "failure"
@@ -68,9 +66,7 @@ def test_receipt_status_zero_reports_failure() -> None:
 def test_receipt_camelcase_field_supported() -> None:
     """Some Web3-style receipts use blockNumber; accept both."""
     wallet = _wallet()
-    wallet.wait_for_transaction_receipt.return_value = SimpleNamespace(
-        blockNumber=99, status=1
-    )
+    wallet.wait_for_transaction_receipt.return_value = SimpleNamespace(blockNumber=99, status=1)
 
     record = migrate_to_safe(wallet, SAFE, 1, dry_run=False)
     assert record.block_number == 99

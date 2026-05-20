@@ -182,8 +182,7 @@ DECISION_TOOL: dict[str, Any] = {
                 "type": "array",
                 "items": {"type": "string"},
                 "description": (
-                    "Rule names of breaches that drove this decision. "
-                    "Empty when intent is `hold`."
+                    "Rule names of breaches that drove this decision. Empty when intent is `hold`."
                 ),
             },
         },
@@ -243,9 +242,7 @@ class Reasoner:
         audit_log: AuditLog | None = None,
     ) -> None:
         if not api_key:
-            raise ValueError(
-                "Anthropic API key is required (set ANTHROPIC_API_KEY in .env)"
-            )
+            raise ValueError("Anthropic API key is required (set ANTHROPIC_API_KEY in .env)")
         self._client = client if client is not None else Anthropic(api_key=api_key)
         self._model = model
         self._max_tokens = max_tokens
@@ -309,9 +306,7 @@ def _render_user_message(inputs: ReasoningInputs) -> str:
     }
     return (
         "Current protocol state follows. Decide the next action and call "
-        "submit_decision.\n\n```json\n"
-        + json.dumps(payload, sort_keys=True, indent=2)
-        + "\n```"
+        "submit_decision.\n\n```json\n" + json.dumps(payload, sort_keys=True, indent=2) + "\n```"
     )
 
 

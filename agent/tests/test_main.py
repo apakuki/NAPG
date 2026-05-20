@@ -25,24 +25,48 @@ def test_version_flag(capsys: pytest.CaptureFixture[str]) -> None:
 
 def test_heartbeat_subcommand_runs_one_tick(capsys: pytest.CaptureFixture[str]) -> None:
     fake_settings = MagicMock()
-    fake_settings.active_rpc_url.return_value = "https://sepolia.example/rpc"
+    fake_settings.active_rpc_urls.return_value = ("https://sepolia.example/rpc",)
 
     fake_result = MagicMock()
     fake_result.model_dump_json.return_value = '{"ok": true}'
 
-    fake_heart = MagicMock()
-    fake_heart.tick.return_value = fake_result
+    fake_pool = MagicMock()
+    fake_pool.tick.return_value = fake_result
 
     with (
         patch.object(cli, "Settings", return_value=fake_settings),
-        patch.object(cli, "RpcHeartbeat", return_value=fake_heart) as heart_cls,
+        patch.object(cli, "RpcHeartbeat", return_value=MagicMock()) as heart_cls,
+        patch.object(cli, "FailoverRpcHeartbeat", return_value=fake_pool) as pool_cls,
     ):
         rc = cli.main(["heartbeat"])
 
     assert rc == 0
     heart_cls.assert_called_once_with("https://sepolia.example/rpc")
-    fake_heart.tick.assert_called_once()
+    pool_cls.assert_called_once()
+    fake_pool.tick.assert_called_once()
     assert '{"ok": true}' in capsys.readouterr().out
+
+
+def test_heartbeat_subcommand_constructs_fallback_when_set() -> None:
+    fake_settings = MagicMock()
+    fake_settings.active_rpc_urls.return_value = (
+        "https://primary.example/rpc",
+        "https://fallback.example/rpc",
+    )
+    fake_pool = MagicMock()
+    fake_pool.tick.return_value = MagicMock(model_dump_json=lambda **_: "{}")
+
+    with (
+        patch.object(cli, "Settings", return_value=fake_settings),
+        patch.object(cli, "RpcHeartbeat", return_value=MagicMock()) as heart_cls,
+        patch.object(cli, "FailoverRpcHeartbeat", return_value=fake_pool) as pool_cls,
+    ):
+        cli.main(["heartbeat"])
+
+    assert heart_cls.call_count == 2
+    pool_cls.assert_called_once()
+    hearts_arg = pool_cls.call_args.args[0]
+    assert len(hearts_arg) == 2
 
 
 def test_aerodrome_subcommand_runs_one_tick(capsys: pytest.CaptureFixture[str]) -> None:
