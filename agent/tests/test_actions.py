@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -45,14 +46,29 @@ def test_dry_run_does_not_submit_tx() -> None:
 def test_execute_path_submits_and_captures_receipt() -> None:
     wallet = _wallet(tx_hash="0x" + "cd" * 32, block_number=46_400_000)
 
+    # 5_000 wei = 5e-15 ETH — pick a value whose Decimal conversion is exact.
     record = migrate_to_safe(wallet, SAFE, 5_000, dry_run=False)
 
-    wallet.native_transfer.assert_called_once_with(to=SAFE, value="5000")
+    wallet.native_transfer.assert_called_once()
+    kwargs = wallet.native_transfer.call_args.kwargs
+    assert kwargs["to"] == SAFE
+    assert isinstance(kwargs["value"], Decimal)
+    assert kwargs["value"] == Decimal("5000") / Decimal(10**18)
     wallet.wait_for_transaction_receipt.assert_called_once_with("0x" + "cd" * 32)
     assert record.dry_run is False
     assert record.tx_hash == "0x" + "cd" * 32
     assert record.block_number == 46_400_000
     assert record.status == "success"
+
+
+def test_execute_converts_wei_to_whole_ether_decimal() -> None:
+    """Regression: passing wei-as-string made the CDP API read 10^18 too much."""
+    wallet = _wallet()
+
+    # 1 ETH = 10**18 wei. The Decimal handed to the wallet must equal 1.
+    migrate_to_safe(wallet, SAFE, 10**18, dry_run=False)
+    value = wallet.native_transfer.call_args.kwargs["value"]
+    assert value == Decimal("1")
 
 
 def test_receipt_status_zero_reports_failure() -> None:

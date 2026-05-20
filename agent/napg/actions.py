@@ -17,11 +17,14 @@ from __future__ import annotations
 
 import json
 import time
+from decimal import Decimal
 from typing import Any, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from napg.audit import AuditLog
+
+WEI_PER_ETH = Decimal(10) ** 18
 
 
 class _WalletLike(Protocol):
@@ -29,10 +32,12 @@ class _WalletLike(Protocol):
 
     Decoupling from `CdpEvmWalletProvider` keeps tests injectable without
     spinning up the SDK and keeps the seam explicit for Phase 2 hardening.
+    `value` is a whole-ether Decimal to match `CdpEvmWalletProvider.native_transfer`,
+    which converts via `Web3.to_wei(value, "ether")` internally.
     """
 
     def get_address(self) -> str: ...
-    def native_transfer(self, to: str, value: str) -> str: ...
+    def native_transfer(self, to: str, value: Decimal) -> str: ...
     def wait_for_transaction_receipt(self, tx_hash: str) -> Any: ...
 
 
@@ -86,7 +91,12 @@ def migrate_to_safe(
             observed_at=time.time(),
         )
     else:
-        tx_hash = wallet.native_transfer(to=safe_address, value=str(value_wei))
+        # CdpEvmWalletProvider.native_transfer expects `value` in whole ether,
+        # not wei — it runs `Web3.to_wei(value, "ether")` internally. Passing
+        # wei here causes the CDP API to read it as 10^18-times-too-much and
+        # reject as "Insufficient balance" regardless of the wallet balance.
+        value_eth = Decimal(value_wei) / WEI_PER_ETH
+        tx_hash = wallet.native_transfer(to=safe_address, value=value_eth)
         receipt = wallet.wait_for_transaction_receipt(tx_hash)
         block_number = _extract_block_number(receipt)
         status = _extract_status(receipt)
