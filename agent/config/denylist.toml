@@ -1,0 +1,18 @@
+# Phase 2 destination denylist — Stage 2 fast-reject path.
+#
+# Loaded by `napg.agentshield.policy.load_denylist`. Like `policy.toml`,
+# this file is Ed25519-signed; the loader rejects unsigned or mismatched-
+# signature copies. To edit: change the list, then run
+# `napg policy sign agent/config/denylist.toml` and commit the updated
+# `.sig` alongside.
+#
+# Phase 2 ships with a small starter list (defensive fences against
+# known-bad common destinations). The long-term plan is a signed feed
+# (OFAC/Chainalysis-style); until that lands, this file is the source of
+# truth and must be re-signed each time it changes. Staleness checks
+# arrive with the feed in a later phase.
+
+addresses = [
+    "0x0000000000000000000000000000000000000000",  # zero address; always denied
+    "0x000000000000000000000000000000000000dEaD",  # common burn address; never a real destination
+]
