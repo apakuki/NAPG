@@ -116,7 +116,7 @@ Build the monitoring brain. Heartbeat Base Sepolia RPC, watch Aerodrome and Seam
 - [ ] Manual test procedures completed: [docs/manual-tests/phase-1.md](docs/manual-tests/phase-1.md) — 1.1, 1.2, 1.3, 1.4, 1.5, 1.7 ticked from live runs (2026-05-18/19); 1.6 and 1.9 have unchecked items pending a live Sepolia `--execute`; 1.8 is the dashboard procedure (skeleton only)
 
 ### Success criteria
-- [ ] Dashboard renders live Sepolia data without errors — needs a live end-to-end run with `scripts/start.sh` and a populated `.env` (manual test 1.8); the page renders the three cards correctly in headless tests and against a missing-backend (502 banner) check
+- [x] Dashboard renders live Sepolia data without errors — verified 2026-05-20 via `scripts/start.sh` against live Alchemy Base Sepolia + Base mainnet endpoints. Heartbeat reported block 41,735,849, Aerodrome quoted USDC/USDT at 0.99951 (5 bps, `Aerodrome_V3` in route), Morpho cards `WETH-USDC` and `cbBTC-USDC` both at 90.39 % utilisation. Auto-poll cadence, tab-visibility behaviour, per-card degrade, and console-error check additionally covered by `frontend/e2e/dashboard.spec.ts` (Playwright headless Chromium, all green)
 - [ ] Agent detects the simulated sequencer delay and submits a migration tx on Sepolia
 - [ ] Audit log contains a complete, human-readable explanation for the migration
 - [ ] Phase 1 security checklist complete (schema validation, redaction, HMAC, threat model written)
