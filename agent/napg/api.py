@@ -29,8 +29,17 @@ from pydantic import BaseModel, ConfigDict
 from napg.config import Settings
 from napg.monitor.aerodrome import AerodromeMonitor, LiquidityProbe
 from napg.monitor.morpho import MorphoMonitor, MorphoPoll
-from napg.monitor.resilience import FailoverRpcHeartbeat
+from napg.monitor.resilience import CircuitBreaker, FailoverRpcHeartbeat, RateLimiter
 from napg.monitor.rpc import HeartbeatResult, RpcHeartbeat
+
+# Per-upstream gates. Aerodrome and Morpho share the same Phase 1 defaults as
+# `FailoverRpcHeartbeat`: 5 req/s sustained / burst of 5, breaker opens after 3
+# consecutive failures and cools down 30 s. Each upstream gets its own
+# limiter+breaker so a flaky 0x doesn't trip the Morpho circuit.
+_AERODROME_LIMITER = RateLimiter(rate_per_sec=5.0, capacity=5)
+_AERODROME_BREAKER = CircuitBreaker(failure_threshold=3, cooldown_s=30.0)
+_MORPHO_LIMITER = RateLimiter(rate_per_sec=5.0, capacity=5)
+_MORPHO_BREAKER = CircuitBreaker(failure_threshold=3, cooldown_s=30.0)
 
 logger = logging.getLogger("napg.api")
 
@@ -71,7 +80,11 @@ def _aerodrome(settings: Settings) -> LiquidityProbe | CardError:
     if not settings.zerox_api_key:
         return CardError(error="ZEROX_API_KEY not set")
     try:
-        return AerodromeMonitor(api_key=settings.zerox_api_key).tick()
+        return AerodromeMonitor(
+            api_key=settings.zerox_api_key,
+            limiter=_AERODROME_LIMITER,
+            breaker=_AERODROME_BREAKER,
+        ).tick()
     except Exception as exc:
         logger.warning("aerodrome probe failed: %s", type(exc).__name__)
         return CardError(error=f"{type(exc).__name__}: {exc}")
@@ -81,7 +94,11 @@ def _morpho(settings: Settings) -> MorphoPoll | CardError:
     if not settings.base_rpc_url:
         return CardError(error="BASE_RPC_URL not set (Morpho needs Base mainnet)")
     try:
-        return MorphoMonitor(settings.base_rpc_url).tick()
+        return MorphoMonitor(
+            settings.base_rpc_url,
+            limiter=_MORPHO_LIMITER,
+            breaker=_MORPHO_BREAKER,
+        ).tick()
     except Exception as exc:
         logger.warning("morpho probe failed: %s", type(exc).__name__)
         return CardError(error=f"{type(exc).__name__}: {exc}")

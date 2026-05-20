@@ -30,6 +30,8 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 from web3 import Web3
 
+from napg.monitor.resilience import CircuitBreaker, RateLimiter, gated_call
+
 MORPHO_BLUE_BASE = "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb"
 BASE_CHAIN_ID = 8453
 
@@ -138,6 +140,8 @@ class MorphoMonitor:
         rpc_url: str,
         web3: Web3 | None = None,
         targets: Sequence[MarketTarget] = DEFAULT_TARGETS,
+        limiter: RateLimiter | None = None,
+        breaker: CircuitBreaker | None = None,
     ) -> None:
         if not rpc_url.startswith("https://"):
             raise ValueError("RPC URL must use https://")
@@ -150,28 +154,38 @@ class MorphoMonitor:
             address=Web3.to_checksum_address(MORPHO_BLUE_BASE),
             abi=MORPHO_BLUE_ABI,
         )
+        self._limiter = limiter
+        self._breaker = breaker
 
     @property
     def targets(self) -> tuple[MarketTarget, ...]:
         return self._targets
 
     def tick(self) -> MorphoPoll:
-        start = time.perf_counter()
-        latest = self._web3.eth.get_block("latest")
-        block_number = int(latest["number"])
-        block_timestamp = int(latest["timestamp"])
-
-        markets: list[MarketState] = []
-        for target in self._targets:
-            raw = self._contract.functions.market(_to_bytes32(target.market_id)).call()
-            markets.append(
-                _build_market_state(
-                    target=target,
-                    raw=raw,
-                    block_number=block_number,
-                    block_timestamp=block_timestamp,
+        def _read_chain_state() -> tuple[int, int, list[MarketState]]:
+            latest = self._web3.eth.get_block("latest")
+            block_number = int(latest["number"])
+            block_timestamp = int(latest["timestamp"])
+            states: list[MarketState] = []
+            for target in self._targets:
+                raw = self._contract.functions.market(_to_bytes32(target.market_id)).call()
+                states.append(
+                    _build_market_state(
+                        target=target,
+                        raw=raw,
+                        block_number=block_number,
+                        block_timestamp=block_timestamp,
+                    )
                 )
-            )
+            return block_number, block_timestamp, states
+
+        # All N reads share a single gate: a tick either lands in one budget
+        # slot or trips the breaker as a unit. Multi-token-budget per-read is
+        # overkill for Morpho's two-market poll.
+        start = time.perf_counter()
+        block_number, block_timestamp, markets = gated_call(
+            _read_chain_state, limiter=self._limiter, breaker=self._breaker
+        )
 
         latency_ms = (time.perf_counter() - start) * 1000.0
         return MorphoPoll(

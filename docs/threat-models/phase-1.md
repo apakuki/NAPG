@@ -32,6 +32,7 @@ This document is the written threat-model delta required by [PLAN.md](../../PLAN
 - `RpcHeartbeat._detect_reorg` chains each block to the previous one *we recorded*, not to a value the same RPC supplied later. A provider can't rewrite history we already stored locally.
 - `block_age_seconds_max` and `rpc_latency_ms_max` thresholds in `napg.policy.breaches` catch a stale-head attack — a provider that "freezes" the chain head trips both signals.
 - `FailoverRpcHeartbeat` (`napg.monitor.resilience`) carries a circuit-breaker per provider: 3 consecutive failures trip a 30 s cooldown and the call falls through to a fallback RPC. This is also the hook for cross-checking two providers once we want active verification (left for a follow-up).
+- The same gate pattern wraps the Morpho mainnet RPC reads via the `gated_call` helper — single-provider only (no failover yet), but the limiter and breaker still apply, so a misbehaving mainnet RPC degrades the Morpho card without spamming the upstream or tipping the rest of the cycle into retry loops.
 - HTTPS-only at config-load (`Settings._require_https`) — no plaintext endpoint can ever be configured.
 - URLs are redacted before they reach logs or the audit DB (`napg.redact.redact_url`); a hostile provider can't smuggle data into the log just by being in the URL.
 
@@ -43,6 +44,7 @@ This document is the written threat-model delta required by [PLAN.md](../../PLAN
 
 **Mitigations:**
 - `LiquidityProbe` and the underlying response model (`napg.monitor.aerodrome`) parse the 0x payload through Pydantic — junk types and missing fields fail closed.
+- The 0x call is gated by the same `RateLimiter` + `CircuitBreaker` pair as the RPC heartbeat (via `gated_call`): a 429 or 5xx storm from 0x trips the breaker after 3 consecutive failures and cools down for 30 s rather than hammering the upstream. The Aerodrome card degrades to an error envelope while the rest of `/api/status` keeps serving.
 - A `peg_deviation_bps` over the configured threshold is *only one input* to the reasoner; the reasoner is told the source ("0x quote") and is instructed (in `SYSTEM_PROMPT`) not to migrate on a single-signal depeg without a corroborating heartbeat or Morpho signal. This survives a single-source manipulation.
 - The `sources` field is treated as advisory only — it never gates any onchain action. A crafted "Aerodrome_V3" label cannot escalate the cycle.
 
@@ -123,7 +125,7 @@ This document is the written threat-model delta required by [PLAN.md](../../PLAN
 - **No signed policy/safe-address config.** Phase 2 introduces signed configs. Phase 1 ships with env-var configuration; a compromised dev box can rewrite the safe address.
 - **Dust testnet balance is the practical cap.** Per-tx and daily caps land with AgentShield in Phase 2; Phase 1 relies on the wallet simply not having enough funds to do meaningful damage.
 - **No backup of the local audit DB.** Phase 5 cutover lands encrypted off-box backups; until then, a hostile actor with `rm -f audit.db` can erase history (and we'd detect that on the next `audit verify`, but couldn't recover the prior content).
-- **Rate-limiter defaults are unverified against every provider.** 5 req/s / burst 5 is comfortably under Alchemy's free tier; if we hit a different provider with a tighter ceiling, the limiter is configurable via `FailoverRpcHeartbeat` kwargs but isn't yet wired through env. Revisit during Phase 5 cutover with the chosen production provider.
+- **Rate-limiter defaults are unverified against every provider.** 5 req/s / burst 5 is the same default for the heartbeat (Sepolia RPC), Aerodrome (0x), and Morpho (Base mainnet RPC); it's comfortably under Alchemy's free tier and 0x's published limits, but isn't yet wired through env per upstream. Revisit during Phase 5 cutover with the chosen production providers, and split per-upstream if 0x's quota turns out to differ materially from the RPC providers'.
 
 ## Next phase delta
 

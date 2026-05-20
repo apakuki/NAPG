@@ -261,3 +261,52 @@ def test_contract_constructed_with_morpho_blue_address():
 
     assert captured["address"].lower() == MORPHO_BLUE_BASE.lower()
     assert any(entry["name"] == "market" for entry in captured["abi"])
+
+
+def test_tick_trips_breaker_on_failure_and_short_circuits_next_call():
+    from napg.monitor.resilience import CircuitBreaker, CircuitOpen
+
+    web3 = MagicMock()
+    web3.eth.get_block.side_effect = RuntimeError("provider down")
+
+    breaker = CircuitBreaker(failure_threshold=1, cooldown_s=60)
+    monitor = MorphoMonitor(
+        "https://base-mainnet.example/rpc",
+        web3=web3,
+        breaker=breaker,
+    )
+
+    with pytest.raises(RuntimeError, match="provider down"):
+        monitor.tick()
+
+    # Breaker is open; next call short-circuits without touching the upstream.
+    with pytest.raises(CircuitOpen):
+        monitor.tick()
+    assert web3.eth.get_block.call_count == 1
+
+
+def test_tick_calls_limiter_acquire():
+    from napg.monitor.resilience import RateLimiter
+
+    web3 = MagicMock()
+    web3.eth.get_block.return_value = {"number": 1, "timestamp": 1}
+    contract = MagicMock()
+    contract.functions.market.return_value.call.return_value = _market_tuple(0, 0, 0)
+    web3.eth.contract.return_value = contract
+
+    acquired: list[int] = []
+
+    class _Counting(RateLimiter):
+        def acquire(self) -> None:
+            acquired.append(1)
+            super().acquire()
+
+    limiter = _Counting(rate_per_sec=1000, capacity=1000)
+    monitor = MorphoMonitor(
+        "https://base-mainnet.example/rpc",
+        web3=web3,
+        limiter=limiter,
+    )
+
+    monitor.tick()
+    assert acquired == [1]
