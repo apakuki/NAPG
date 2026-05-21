@@ -7,12 +7,16 @@
  * so a signature obtained for one app cannot be replayed against another. We
  * derive the domain from the request headers (`x-forwarded-host` first, then
  * `host`) rather than trusting any client-supplied value.
+ *
+ * Guarded by `applyGuards`: CSRF (Origin/Referer match) + per-IP rate
+ * limit so an attacker can't open thousands of relay channels in a loop.
  */
 
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { startChannel } from "@/lib/siwf";
+import { applyGuards } from "@/lib/api-guards";
 
 function resolveDomain(hdrs: Headers): string {
   const fwdHost = hdrs.get("x-forwarded-host");
@@ -27,13 +31,16 @@ function resolveOrigin(hdrs: Headers, domain: string): string {
   return `${proto}://${domain}`;
 }
 
-export async function POST() {
+export async function POST(request: Request) {
+  const blocked = applyGuards(request, {
+    bucketName: "siwf_start",
+    csrf: true,
+  });
+  if (blocked) return blocked;
+
   const hdrs = await headers();
   const domain = resolveDomain(hdrs);
   const origin = resolveOrigin(hdrs, domain);
-  // The siweUri is the URL the Farcaster app shows the user in the sign-in
-  // prompt. Point it at the app root, not the polling endpoint — the user is
-  // approving sign-in to the *site*, not authorising one API call.
   const channel = await startChannel({ domain, siweUri: `${origin}/` });
   return NextResponse.json(channel);
 }

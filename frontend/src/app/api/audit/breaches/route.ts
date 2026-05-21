@@ -11,6 +11,8 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 
+import { redactResponse } from "@/lib/redact";
+
 const BACKEND_URL = process.env.NAPG_API_URL ?? "http://127.0.0.1:8000";
 
 export const dynamic = "force-dynamic";
@@ -27,9 +29,9 @@ export async function GET(request: NextRequest) {
     const response = await fetch(url, { cache: "no-store" });
     const body = await response.json();
     if (!response.ok) {
-      return NextResponse.json(body, { status: response.status });
+      return NextResponse.json(redactResponse(body), { status: response.status });
     }
-    return NextResponse.json(body);
+    return NextResponse.json(redactResponse(body));
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json(

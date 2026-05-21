@@ -4,6 +4,8 @@
 // http://127.0.0.1:8000) — set this in .env.local when running the agent
 // on a different host or port.
 
+import { redactResponse } from "@/lib/redact";
+
 const BACKEND_URL = process.env.NAPG_API_URL ?? "http://127.0.0.1:8000";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +22,7 @@ export async function GET() {
       );
     }
     const body = await response.json();
-    return Response.json(body);
+    return Response.json(redactResponse(body));
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return Response.json(
