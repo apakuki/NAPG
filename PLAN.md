@@ -221,6 +221,7 @@ Make NAPG discoverable in the Base App and authable without a password.
 - [ ] App is discoverable inside the Base App mini-app directory
 - [ ] CSP, cookie flags, and rate-limits verified in browser devtools
 - [ ] ZAP baseline returns no HIGH/CRITICAL findings
+- [x] Phase 3 threat-model addendum filed — [docs/threat-models/phase-3.md](docs/threat-models/phase-3.md) walks the ten new attack surfaces (SIWF channel-token replay, session cookie forgery, CSRF on state-changing routes, XFF spoof, CSP regression, Basename squatter, API response leakage, share-intent phishing, in-app browser sandbox, spoofed Host on manifest) with mitigations, threat/mitigation summary table, eight accepted-risk items deferred to Phase 5 or sign-off, and a Phase 4 delta note covering x402 + Builder Code + reporting key separation
 - [ ] User signs off on Phase 3
 
 ### Troubleshooting
