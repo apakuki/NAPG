@@ -21,25 +21,28 @@ test("nav reaches every Phase 3 stub page", async ({ page }) => {
     page.getByRole("heading", { name: "NetAssure Protocol Guardian" }),
   ).toBeVisible();
 
-  await page.getByRole("link", { name: "Breaches" }).click();
+  // Each dashboard card now has its own "View breaches →" link, so the
+  // nav-link match has to be exact to avoid strict-mode ambiguity.
+  await page.getByRole("link", { name: "Breaches", exact: true }).click();
   await expect(page).toHaveURL(/\/breaches$/);
   await expect(
     page.getByRole("heading", { name: "Breach feed" }),
   ).toBeVisible();
 
-  await page.getByRole("link", { name: "Settings" }).click();
+  await page.getByRole("link", { name: "Settings", exact: true }).click();
   await expect(page).toHaveURL(/\/settings$/);
-  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Settings", exact: true }),
+  ).toBeVisible();
 
-  await page.getByRole("link", { name: "Dashboard" }).click();
+  await page.getByRole("link", { name: "Dashboard", exact: true }).click();
   await expect(page).toHaveURL(/\/$/);
 });
 
 test("protocol detail page reads the dynamic segment", async ({ page }) => {
-  await page.goto("/protocols/aerodrome-usdc-usdt");
+  // The id whitelist is {heartbeat, aerodrome, morpho}; everything else 404s.
+  await page.goto("/protocols/aerodrome");
   await expect(
-    page.getByRole("heading", {
-      name: "Protocol detail: aerodrome-usdc-usdt",
-    }),
+    page.getByRole("heading", { name: "Aerodrome USDC/USDT" }),
   ).toBeVisible();
 });

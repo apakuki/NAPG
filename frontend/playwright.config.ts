@@ -22,5 +22,11 @@ export default defineConfig({
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    env: {
+      // Pinned predictable secret so the e2e suite can mint matching
+      // HMAC-signed session cookies and exercise the signed-in surfaces
+      // without driving a real SIWF flow. NOT a production secret.
+      NAPG_SESSION_SECRET: "playwright-test-secret-do-not-use-elsewhere",
+    },
   },
 });
