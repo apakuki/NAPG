@@ -85,7 +85,7 @@ export function SignIn() {
         </p>
         <a
           href={state.channel.url}
-          className="break-all rounded-lg bg-blue-600 px-4 py-2 text-center text-sm font-medium text-white hover:bg-blue-700"
+          className="tap break-all rounded-lg bg-blue-600 px-4 text-center text-sm font-medium text-white hover:bg-blue-700"
         >
           Open in Farcaster
         </a>
@@ -121,7 +121,7 @@ export function SignIn() {
         type="button"
         onClick={begin}
         disabled={state.kind === "starting"}
-        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-zinc-400"
+        className="tap rounded-lg bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-zinc-400"
       >
         {state.kind === "starting" ? "Opening channel..." : "Sign in with Farcaster"}
       </button>

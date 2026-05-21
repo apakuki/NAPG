@@ -14,7 +14,7 @@ export default async function SettingsPage() {
     : null;
 
   return (
-    <main className="flex min-h-screen flex-col items-center gap-8 bg-zinc-50 px-6 py-10 dark:bg-black">
+    <main className="flex min-h-screen flex-col items-center gap-6 bg-zinc-50 px-4 py-6 md:gap-8 md:px-6 md:py-10 dark:bg-black">
       <header className="flex max-w-5xl flex-col gap-2 text-center">
         <h1 className="text-3xl font-semibold tracking-tight text-black dark:text-zinc-50">
           Settings

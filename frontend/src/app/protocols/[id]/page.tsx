@@ -34,7 +34,7 @@ export default async function ProtocolDetailPage({ params }: PageProps) {
   const labels = PROTOCOL_LABELS[id];
 
   return (
-    <main className="flex min-h-screen flex-col items-center gap-8 bg-zinc-50 px-6 py-10 dark:bg-black">
+    <main className="flex min-h-screen flex-col items-center gap-6 bg-zinc-50 px-4 py-6 md:gap-8 md:px-6 md:py-10 dark:bg-black">
       <header className="flex w-full max-w-5xl flex-col gap-2">
         <p className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-500">
           Protocol

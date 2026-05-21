@@ -78,7 +78,7 @@ export function PasskeyWallet() {
           type="button"
           disabled={disconnectPending}
           onClick={() => disconnect()}
-          className="self-start rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+          className="tap self-start rounded-lg border border-zinc-300 px-4 text-sm font-medium text-zinc-700 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
         >
           {disconnectPending ? "Disconnecting..." : "Disconnect"}
         </button>
@@ -99,7 +99,7 @@ export function PasskeyWallet() {
         onClick={() =>
           coinbaseConnector && connect({ connector: coinbaseConnector })
         }
-        className="self-start rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-zinc-400"
+        className="tap self-start rounded-lg bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-zinc-400"
       >
         {connectPending ? "Opening Passkey..." : "Connect Smart Wallet"}
       </button>

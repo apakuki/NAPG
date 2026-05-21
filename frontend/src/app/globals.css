@@ -1,26 +1,68 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * Theme tokens for the Base App in-app browser. Phase 3 ships with a small,
+ * deliberate palette aligned with Base's brand:
+ *   - background:   zinc-50 / zinc-950 (matches the Base App chrome)
+ *   - accent (brand): Coinbase blue (#0052FF) for primary actions
+ *   - surface:     white / zinc-950 for cards
+ * Tailwind 4's @theme directive exposes these as `--color-*` so utilities
+ * like `text-brand` and `bg-surface` work in any component.
+ */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+:root {
+  --color-base-background: #fafafa;
+  --color-base-foreground: #18181b;
+  --color-base-surface: #ffffff;
+  --color-base-muted: #71717a;
+  --color-base-brand: #0052ff;
+  color-scheme: light dark;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --color-base-background: #0a0a0a;
+    --color-base-foreground: #f4f4f5;
+    --color-base-surface: #09090b;
+    --color-base-muted: #a1a1aa;
   }
 }
 
+@theme inline {
+  --color-background: var(--color-base-background);
+  --color-foreground: var(--color-base-foreground);
+  --color-surface: var(--color-base-surface);
+  --color-muted: var(--color-base-muted);
+  --color-brand: var(--color-base-brand);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html {
+  /* Prevent the iOS Safari text-size adjustment on landscape rotation; the
+   * Base App in-app browser triggers this otherwise. */
+  -webkit-text-size-adjust: 100%;
+  /* Smooth touch scrolling on iOS without inertia jank. */
+  -webkit-overflow-scrolling: touch;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-background);
+  color: var(--foreground, var(--color-base-foreground));
+  font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Respect the iOS / Android home indicator + status bar without padding
+   * every page. The bottom nav still adds its own inset on top of this. */
+  min-height: 100dvh;
+}
+
+/*
+ * Tap targets ≥44px (WCAG 2.5.5 + Apple HIG). Apply via `.tap` on any
+ * interactive element that would otherwise be smaller -- buttons that say
+ * "Sign in" can be visually compact while still being touchable.
+ */
+.tap {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
