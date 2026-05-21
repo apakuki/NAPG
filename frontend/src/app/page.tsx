@@ -1,4 +1,28 @@
+import { headers } from "next/headers";
+import type { Metadata } from "next";
+
 import { StatusDashboard } from "./_components/status-dashboard";
+import { buildHomeEmbed } from "@/lib/manifest";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const hdrs = await headers();
+  const host = hdrs.get("x-forwarded-host") ?? hdrs.get("host") ?? "localhost:3000";
+  const proto = hdrs.get("x-forwarded-proto") ?? "http";
+  const origin = `${proto}://${host}`;
+  return {
+    other: {
+      // Farcaster Frame v2 embed: makes this URL shareable as a launch-frame
+      // in Farcaster casts. Distinct from the catalog manifest at
+      // /.well-known/farcaster.json -- this is per-page.
+      "fc:miniapp": JSON.stringify(buildHomeEmbed(origin)),
+    },
+    openGraph: {
+      title: "NetAssure Protocol Guardian",
+      description: "NOC-level Service Assurance for Base.",
+      images: [`${origin}/opengraph-image`],
+    },
+  };
+}
 
 export default function Home() {
   return (

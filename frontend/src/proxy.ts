@@ -66,11 +66,13 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     // Run on every page request except static assets, the optimized image
-    // route, the favicon, and prefetches from `next/link` (prefetches don't
-    // need a fresh nonce and forcing dynamic rendering on them costs perf
-    // for no security benefit).
+    // route, the favicon, generated image responses (icon/splash/og), the
+    // well-known manifest path (JSON, not HTML), and prefetches from
+    // `next/link` (prefetches don't need a fresh nonce and forcing dynamic
+    // rendering on them costs perf for no security benefit).
     {
-      source: "/((?!_next/static|_next/image|favicon.ico).*)",
+      source:
+        "/((?!_next/static|_next/image|favicon.ico|opengraph-image|api/og/|\\.well-known/).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },
