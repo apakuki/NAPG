@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 
+import { PasskeyWallet } from "../_components/passkey-wallet";
 import { SignIn } from "../_components/sign-in";
 import { SignOut } from "../_components/sign-out";
 import { resolveBasename, truncateAddress } from "@/lib/basenames";
@@ -62,6 +63,18 @@ export default async function SettingsPage() {
         ) : (
           <SignIn />
         )}
+      </section>
+      <section
+        aria-labelledby="wallet-heading"
+        className="flex w-full max-w-5xl flex-col gap-4 rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950"
+      >
+        <h2
+          id="wallet-heading"
+          className="text-base font-semibold text-zinc-900 dark:text-zinc-100"
+        >
+          Smart Wallet
+        </h2>
+        <PasskeyWallet />
       </section>
     </main>
   );
