@@ -158,3 +158,31 @@ def test_verify_requires_key(db_path: Path) -> None:
 
     with pytest.raises(ValueError, match="HMAC key"):
         verify(db_path, hmac_key="")
+
+
+def test_query_filters_by_kind_and_returns_newest_first(db_path: Path) -> None:
+    with AuditLog(db_path, hmac_key=KEY) as log:
+        log.record("snapshot", {"step": 1})
+        log.record_breaches([_breach(rule="rpc_latency_ms_max")])
+        log.record("snapshot", {"step": 2})
+        log.record_breaches([_breach(rule="block_age_seconds_max", actual=120)])
+
+        breaches = log.query(kind="breach", limit=10)
+        snapshots = log.query(kind="snapshot", limit=10)
+
+    assert [b.payload["rule"] for b in breaches] == [
+        "block_age_seconds_max",
+        "rpc_latency_ms_max",
+    ]
+    assert [s.payload["step"] for s in snapshots] == [2, 1]
+
+
+def test_query_caps_limit_and_supports_chronological_order(db_path: Path) -> None:
+    with AuditLog(db_path, hmac_key=KEY) as log:
+        for i in range(6):
+            log.record("snapshot", {"i": i})
+        capped = log.query(kind="snapshot", limit=10_000)
+        first_three = log.query(kind="snapshot", limit=3, newest_first=False)
+
+    assert len(capped) == 6
+    assert [r.payload["i"] for r in first_three] == [0, 1, 2]

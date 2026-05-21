@@ -23,9 +23,10 @@ import asyncio
 import logging
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, ConfigDict
 
+from napg.audit import AuditLog
 from napg.config import Settings
 from napg.monitor.aerodrome import AerodromeMonitor, LiquidityProbe
 from napg.monitor.morpho import MorphoMonitor, MorphoPoll
@@ -60,6 +61,28 @@ class StatusResponse(BaseModel):
     heartbeat: HeartbeatResult | CardError
     aerodrome: LiquidityProbe | CardError
     morpho: MorphoPoll | CardError
+
+
+class BreachFeedItem(BaseModel):
+    """One breach row reshaped for the UI feed. Drops the HMAC (not display).
+
+    `payload` is the parsed breach: rule, source, severity, threshold, actual,
+    message, detected_at. The UI uses `source` to filter the per-protocol
+    detail page, and the rest to render the row.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    id: int
+    recorded_at: str
+    payload: dict[str, Any]
+
+
+class BreachFeedResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    items: list[BreachFeedItem]
+    total_returned: int
 
 
 def _heartbeat(settings: Settings) -> HeartbeatResult | CardError:
@@ -125,6 +148,38 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             aerodrome=aerodrome,
             morpho=morpho,
         )
+
+    @app.get("/api/audit/breaches", response_model=BreachFeedResponse)
+    async def breaches(
+        limit: int = Query(default=50, ge=1, le=200),
+        source: str | None = Query(default=None, max_length=64),
+    ) -> BreachFeedResponse:
+        """Most recent breach rows from the append-only audit log.
+
+        `source` filters to a single probe (`heartbeat`, `aerodrome`, `morpho`)
+        client-side once the rows are read; the audit log is keyed by kind, not
+        source, so we pull `limit + slack` rows and filter in Python. Small
+        enough at Phase 3 volumes that pagination keys can wait for Phase 5.
+        """
+        if not resolved.audit_hmac_key:
+            raise HTTPException(
+                status_code=503,
+                detail="audit log not configured (NAPG_AUDIT_HMAC_KEY unset)",
+            )
+
+        def read_breaches() -> list[BreachFeedItem]:
+            with AuditLog(resolved.audit_db_path, resolved.audit_hmac_key) as log:
+                rows = log.query(kind="breach", limit=limit)
+            items = [
+                BreachFeedItem(id=row.id, recorded_at=row.recorded_at, payload=row.payload)
+                for row in rows
+            ]
+            if source is not None:
+                items = [it for it in items if it.payload.get("source") == source]
+            return items
+
+        items = await asyncio.to_thread(read_breaches)
+        return BreachFeedResponse(items=items, total_returned=len(items))
 
     return app
 

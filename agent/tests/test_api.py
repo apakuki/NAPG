@@ -206,3 +206,106 @@ def test_morpho_card_wraps_probe_exception_as_carderror():
 
     assert hasattr(result, "error")
     assert "_Boom" in result.error  # type: ignore[union-attr]
+
+
+def _seed_breaches(audit_db: str, hmac_key: str) -> None:
+    """Populate the audit DB with three breach rows across two sources."""
+    from napg.audit import AuditLog
+    from napg.policy.breaches import Breach
+
+    with AuditLog(audit_db, hmac_key) as log:
+        log.record_breaches(
+            [
+                Breach(
+                    rule="rpc_latency_ms_max",
+                    source="heartbeat",
+                    severity="warn",
+                    threshold=2000,
+                    actual=4500,
+                    message="RPC heartbeat latency 4500ms > 2000ms",
+                    detected_at=1_700_000_000.0,
+                ),
+                Breach(
+                    rule="peg_deviation_bps_max",
+                    source="aerodrome",
+                    severity="warn",
+                    threshold=50,
+                    actual=120,
+                    message="USDC/USDT peg drifted 120bps",
+                    detected_at=1_700_000_010.0,
+                ),
+            ],
+            at=1_700_000_010.0,
+        )
+        log.record_breaches(
+            [
+                Breach(
+                    rule="market_utilization_bps_max",
+                    source="morpho",
+                    severity="warn",
+                    threshold=9500,
+                    actual=9700,
+                    message="Morpho WETH-USDC utilisation 97%",
+                    detected_at=1_700_000_020.0,
+                ),
+            ],
+            at=1_700_000_020.0,
+        )
+
+
+def test_breaches_endpoint_503s_when_hmac_key_unset(tmp_path):
+    settings = _settings(NAPG_AUDIT_DB=str(tmp_path / "audit.db"))
+    client = TestClient(create_app(settings=settings))
+    response = client.get("/api/audit/breaches")
+    assert response.status_code == 503
+    assert "NAPG_AUDIT_HMAC_KEY" in response.json()["detail"]
+
+
+def test_breaches_endpoint_returns_recent_rows_newest_first(tmp_path):
+    db = tmp_path / "audit.db"
+    settings = _settings(
+        NAPG_AUDIT_DB=str(db),
+        NAPG_AUDIT_HMAC_KEY="test-key-do-not-use-in-prod",
+    )
+    _seed_breaches(str(db), "test-key-do-not-use-in-prod")
+    client = TestClient(create_app(settings=settings))
+    response = client.get("/api/audit/breaches")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_returned"] == 3
+    # Newest first: morpho row was the most recent insert.
+    assert body["items"][0]["payload"]["source"] == "morpho"
+    assert body["items"][-1]["payload"]["source"] == "heartbeat"
+    # No HMAC leakage onto the wire.
+    assert "hmac" not in body["items"][0]
+
+
+def test_breaches_endpoint_filters_by_source(tmp_path):
+    db = tmp_path / "audit.db"
+    settings = _settings(
+        NAPG_AUDIT_DB=str(db),
+        NAPG_AUDIT_HMAC_KEY="test-key",
+    )
+    _seed_breaches(str(db), "test-key")
+    client = TestClient(create_app(settings=settings))
+    response = client.get("/api/audit/breaches?source=aerodrome")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_returned"] == 1
+    assert body["items"][0]["payload"]["source"] == "aerodrome"
+    assert body["items"][0]["payload"]["rule"] == "peg_deviation_bps_max"
+
+
+def test_breaches_endpoint_clamps_limit(tmp_path):
+    db = tmp_path / "audit.db"
+    settings = _settings(
+        NAPG_AUDIT_DB=str(db),
+        NAPG_AUDIT_HMAC_KEY="test-key",
+    )
+    _seed_breaches(str(db), "test-key")
+    client = TestClient(create_app(settings=settings))
+    # FastAPI Query rejects out-of-range limits at the validator layer.
+    response = client.get("/api/audit/breaches?limit=999")
+    assert response.status_code == 422
+    response = client.get("/api/audit/breaches?limit=0")
+    assert response.status_code == 422

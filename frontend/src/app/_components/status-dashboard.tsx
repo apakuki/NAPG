@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AerodromeCard,
@@ -133,10 +134,12 @@ export function StatusDashboard() {
 function CardShell({
   title,
   subtitle,
+  detailHref,
   children,
 }: {
   title: string;
   subtitle?: string;
+  detailHref?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -148,6 +151,16 @@ function CardShell({
         ) : null}
       </header>
       <div className="text-sm">{children}</div>
+      {detailHref ? (
+        <footer className="mt-3 border-t border-zinc-100 pt-2 dark:border-zinc-800">
+          <Link
+            href={detailHref}
+            className="text-xs text-blue-600 hover:underline dark:text-blue-400"
+          >
+            View breaches &rarr;
+          </Link>
+        </footer>
+      ) : null}
     </article>
   );
 }
@@ -176,14 +189,22 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 function HeartbeatCardView({ card }: { card: HeartbeatCard | { error: string } | null }) {
   if (card === null) {
     return (
-      <CardShell title="RPC heartbeat" subtitle="Base latency + reorg">
+      <CardShell
+        title="RPC heartbeat"
+        subtitle="Base latency + reorg"
+        detailHref="/protocols/heartbeat"
+      >
         <LoadingBody />
       </CardShell>
     );
   }
   if (isCardError(card)) {
     return (
-      <CardShell title="RPC heartbeat" subtitle="Base latency + reorg">
+      <CardShell
+        title="RPC heartbeat"
+        subtitle="Base latency + reorg"
+        detailHref="/protocols/heartbeat"
+      >
         <ErrorBody message={card.error} />
       </CardShell>
     );
@@ -212,14 +233,22 @@ function HeartbeatCardView({ card }: { card: HeartbeatCard | { error: string } |
 function AerodromeCardView({ card }: { card: AerodromeCard | { error: string } | null }) {
   if (card === null) {
     return (
-      <CardShell title="Aerodrome USDC/USDT" subtitle="Peg deviation via 0x">
+      <CardShell
+        title="Aerodrome USDC/USDT"
+        subtitle="Peg deviation via 0x"
+        detailHref="/protocols/aerodrome"
+      >
         <LoadingBody />
       </CardShell>
     );
   }
   if (isCardError(card)) {
     return (
-      <CardShell title="Aerodrome USDC/USDT" subtitle="Peg deviation via 0x">
+      <CardShell
+        title="Aerodrome USDC/USDT"
+        subtitle="Peg deviation via 0x"
+        detailHref="/protocols/aerodrome"
+      >
         <ErrorBody message={card.error} />
       </CardShell>
     );
@@ -248,14 +277,22 @@ function AerodromeCardView({ card }: { card: AerodromeCard | { error: string } |
 function MorphoCardView({ card }: { card: MorphoCard | { error: string } | null }) {
   if (card === null) {
     return (
-      <CardShell title="Morpho Blue" subtitle="WETH-USDC and cbBTC-USDC">
+      <CardShell
+        title="Morpho Blue"
+        subtitle="WETH-USDC and cbBTC-USDC"
+        detailHref="/protocols/morpho"
+      >
         <LoadingBody />
       </CardShell>
     );
   }
   if (isCardError(card)) {
     return (
-      <CardShell title="Morpho Blue" subtitle="WETH-USDC and cbBTC-USDC">
+      <CardShell
+        title="Morpho Blue"
+        subtitle="WETH-USDC and cbBTC-USDC"
+        detailHref="/protocols/morpho"
+      >
         <ErrorBody message={card.error} />
       </CardShell>
     );

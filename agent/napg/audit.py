@@ -181,6 +181,44 @@ class AuditLog:
                 hmac=row[4],
             )
 
+    def query(
+        self,
+        *,
+        kind: str | None = None,
+        limit: int = 50,
+        newest_first: bool = True,
+    ) -> list[AuditRow]:
+        """Read audit rows, optionally filtered by kind. Caps `limit` at 500.
+
+        Newest-first by default since the read consumers (breach feed UI,
+        per-protocol detail page) want the most recent activity. Set
+        `newest_first=False` for chronological replay.
+        """
+        capped = max(1, min(int(limit), 500))
+        order = "DESC" if newest_first else "ASC"
+        if kind is None:
+            cursor = self._conn.execute(
+                f"SELECT id, kind, recorded_at, payload, hmac FROM audit_log "
+                f"ORDER BY id {order} LIMIT ?",
+                (capped,),
+            )
+        else:
+            cursor = self._conn.execute(
+                f"SELECT id, kind, recorded_at, payload, hmac FROM audit_log "
+                f"WHERE kind = ? ORDER BY id {order} LIMIT ?",
+                (kind, capped),
+            )
+        return [
+            AuditRow(
+                id=row[0],
+                kind=row[1],
+                recorded_at=row[2],
+                payload=json.loads(row[3]),
+                hmac=row[4],
+            )
+            for row in cursor
+        ]
+
 
 def verify(db_path: str | Path, hmac_key: str) -> VerifyResult:
     """Walk every audit row, recompute its HMAC, return mismatching row ids.
