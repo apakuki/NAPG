@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { buildHomeEmbed, buildManifest } from "./manifest";
+import {
+  buildBreachFeedEmbed,
+  buildComposeIntentUrl,
+  buildHomeEmbed,
+  buildManifest,
+  buildProtocolEmbed,
+} from "./manifest";
 
 const ORIGIN = "https://napg.example";
 let originalAssoc: string | undefined;
@@ -98,5 +104,55 @@ describe("buildHomeEmbed", () => {
   it("respects the title <= 32 chars limit", () => {
     const embed = buildHomeEmbed(ORIGIN);
     expect(embed.button.title.length).toBeLessThanOrEqual(32);
+  });
+});
+
+describe("page-specific embeds", () => {
+  it("buildBreachFeedEmbed points at /breaches", () => {
+    const embed = buildBreachFeedEmbed(ORIGIN);
+    expect(embed.button.action.url).toBe(`${ORIGIN}/breaches`);
+    expect(embed.button.title.length).toBeLessThanOrEqual(32);
+  });
+
+  it("buildProtocolEmbed points at /protocols/<id> and url-encodes the id", () => {
+    const embed = buildProtocolEmbed(ORIGIN, "aerodrome");
+    expect(embed.button.action.url).toBe(`${ORIGIN}/protocols/aerodrome`);
+    // Defence against a malformed id segment ever reaching the embed.
+    const slashed = buildProtocolEmbed(ORIGIN, "weird/id");
+    expect(slashed.button.action.url).toBe(`${ORIGIN}/protocols/weird%2Fid`);
+  });
+});
+
+describe("buildComposeIntentUrl", () => {
+  it("targets the canonical compose intent URL", () => {
+    const url = buildComposeIntentUrl("hello", "https://napg.example/breaches");
+    expect(url.startsWith("https://farcaster.xyz/~/compose?")).toBe(true);
+  });
+
+  it("URL-encodes both the text and the embed URL", () => {
+    const url = buildComposeIntentUrl(
+      "a & b",
+      "https://napg.example/protocols/aerodrome?after=1",
+    );
+    // URLSearchParams uses + for spaces; ? in the embed URL is %3F.
+    expect(url).toContain("text=a+%26+b");
+    expect(url).toContain("after%3D1");
+    // embeds[] is the canonical multi-embed key.
+    expect(url).toContain("embeds%5B%5D=");
+  });
+
+  it("truncates over-long text to the cast ceiling with an ellipsis", () => {
+    const long = "x".repeat(500);
+    const url = buildComposeIntentUrl(long, "https://napg.example/");
+    const params = new URL(url).searchParams;
+    const text = params.get("text") ?? "";
+    expect(text.length).toBeLessThanOrEqual(280);
+    expect(text.endsWith("…")).toBe(true);
+  });
+
+  it("leaves short text untouched", () => {
+    const url = buildComposeIntentUrl("short cast", "https://napg.example/");
+    const text = new URL(url).searchParams.get("text");
+    expect(text).toBe("short cast");
   });
 });

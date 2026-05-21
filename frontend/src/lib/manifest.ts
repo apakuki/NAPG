@@ -104,6 +104,11 @@ function stripProtocol(origin: string): string {
  * manifest above: the manifest describes the app to base.dev's catalog; the
  * embed makes a single URL shareable as a Frame in Farcaster casts. The
  * shapes overlap but are not identical.
+ *
+ * Every page that the user could plausibly share gets its own embed so the
+ * Farcaster client renders an open-button for that *specific* surface --
+ * sharing `/protocols/aerodrome` should land on the Aerodrome detail page,
+ * not the home dashboard.
  */
 export interface FrameEmbed {
   version: "1";
@@ -120,19 +125,66 @@ export interface FrameEmbed {
   };
 }
 
-export function buildHomeEmbed(origin: string): FrameEmbed {
+function buildEmbed(
+  origin: string,
+  pageUrl: string,
+  buttonTitle: string,
+): FrameEmbed {
   return {
     version: "1",
     imageUrl: `${origin}/opengraph-image`,
     button: {
-      title: "Open NAPG",
+      title: buttonTitle,
       action: {
         type: "launch_frame",
-        url: `${origin}/`,
+        url: pageUrl,
         name: NAME,
         splashImageUrl: `${origin}/api/og/splash`,
         splashBackgroundColor: "#0a0a0a",
       },
     },
   };
+}
+
+export function buildHomeEmbed(origin: string): FrameEmbed {
+  return buildEmbed(origin, `${origin}/`, "Open NAPG");
+}
+
+export function buildBreachFeedEmbed(origin: string): FrameEmbed {
+  return buildEmbed(origin, `${origin}/breaches`, "View breaches");
+}
+
+export function buildProtocolEmbed(origin: string, id: string): FrameEmbed {
+  return buildEmbed(
+    origin,
+    `${origin}/protocols/${encodeURIComponent(id)}`,
+    "Open NAPG",
+  );
+}
+
+/**
+ * Farcaster compose-intent URL. The client opens this in a new tab and the
+ * Farcaster app pre-fills a cast with `text` and the linked `embedUrl`.
+ *
+ * `embeds[]` is the canonical multi-embed array syntax. The brackets are
+ * URL-encoded by URLSearchParams (`%5B%5D`) which Farcaster decodes; both
+ * forms work in current clients. Spec:
+ * https://docs.farcaster.xyz/reference/warpcast/cast-composer-intents
+ *
+ * Text is truncated to 320 characters (the cast limit). We intentionally
+ * leave room: 280-char ceiling here so the embed link description, which
+ * the client renders as a card, gets visible attention.
+ */
+const COMPOSE_TEXT_CEILING = 280;
+const COMPOSE_BASE = "https://farcaster.xyz/~/compose";
+
+export function buildComposeIntentUrl(text: string, embedUrl: string): string {
+  const trimmed =
+    text.length > COMPOSE_TEXT_CEILING
+      ? `${text.slice(0, COMPOSE_TEXT_CEILING - 1)}…`
+      : text;
+  const params = new URLSearchParams();
+  params.set("text", trimmed);
+  params.append("embeds[]", embedUrl);
+  return `${COMPOSE_BASE}?${params.toString()}`;
 }

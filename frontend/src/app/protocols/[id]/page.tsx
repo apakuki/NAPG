@@ -1,7 +1,11 @@
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 
 import { BreachFeed } from "../../_components/breach-feed";
+import { ShareToFarcaster } from "../../_components/share-to-farcaster";
 import { BREACH_SOURCES, type BreachSource } from "@/lib/breaches";
+import { buildProtocolEmbed } from "@/lib/manifest";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -28,10 +32,36 @@ function isBreachSource(id: string): id is BreachSource {
   return (BREACH_SOURCES as readonly string[]).includes(id);
 }
 
+async function resolveOrigin(): Promise<string> {
+  const hdrs = await headers();
+  const host = hdrs.get("x-forwarded-host") ?? hdrs.get("host") ?? "localhost:3000";
+  const proto = hdrs.get("x-forwarded-proto") ?? "http";
+  return `${proto}://${host}`;
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { id } = await params;
+  if (!isBreachSource(id)) return {};
+  const origin = await resolveOrigin();
+  const labels = PROTOCOL_LABELS[id];
+  return {
+    title: `${labels.title} — NAPG`,
+    other: {
+      "fc:miniapp": JSON.stringify(buildProtocolEmbed(origin, id)),
+    },
+    openGraph: {
+      title: `${labels.title} health — NAPG`,
+      description: labels.subtitle,
+      images: [`${origin}/opengraph-image`],
+    },
+  };
+}
+
 export default async function ProtocolDetailPage({ params }: PageProps) {
   const { id } = await params;
   if (!isBreachSource(id)) notFound();
   const labels = PROTOCOL_LABELS[id];
+  const origin = await resolveOrigin();
 
   return (
     <main className="flex min-h-screen flex-col items-center gap-6 bg-zinc-50 px-4 py-6 md:gap-8 md:px-6 md:py-10 dark:bg-black">
@@ -39,10 +69,20 @@ export default async function ProtocolDetailPage({ params }: PageProps) {
         <p className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-500">
           Protocol
         </p>
-        <h1 className="text-3xl font-semibold tracking-tight text-black dark:text-zinc-50">
-          {labels.title}
-        </h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">{labels.subtitle}</p>
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h1 className="text-3xl font-semibold tracking-tight text-black dark:text-zinc-50">
+              {labels.title}
+            </h1>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+              {labels.subtitle}
+            </p>
+          </div>
+          <ShareToFarcaster
+            text={`${labels.title} health from NAPG ↓`}
+            embedUrl={`${origin}/protocols/${id}`}
+          />
+        </div>
       </header>
       <section
         aria-labelledby="breaches-heading"
