@@ -1,0 +1,27 @@
+# NAPG agent — internal-only status API + orchestrator.
+# Deploy from this directory:  fly deploy
+#
+# Intentionally has NO [http_service]: the agent is never exposed to the
+# public internet. The frontend reaches it over Fly's 6PN private network at
+# http://napg-agent-staging.internal:8080. Keep at least one machine running
+# so that .internal DNS always resolves to a live instance.
+
+app = "napg-agent-staging"
+primary_region = "syd"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NAPG_NETWORK = "base-sepolia"
+  NAPG_AUDIT_DB = "/data/audit.db"
+
+# Append-only audit log on a persistent volume. Create once with:
+#   fly volumes create napg_audit --region syd --size 1 -a napg-agent-staging
+[mounts]
+  source = "napg_audit"
+  destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
