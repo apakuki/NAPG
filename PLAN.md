@@ -53,7 +53,7 @@ Lay groundwork so subsequent phases have somewhere to land code.
 - [x] Enable Dependabot for both `pip` and `npm` ecosystems (configured for `uv`, `npm`, and `github-actions`)
 - [x] Add `gitleaks` pre-commit hook and a CI job that re-scans on every push
 - [x] CI runs `pip-audit` (agent) and `npm audit --audit-level=high` (frontend); fail on HIGH/CRITICAL
-- [x] Enable branch protection on `main`: require CI green, no force-push, no direct push (once collaborators land) — deferred 2026-05-17 per [Phase 0 threat model](docs/threat-models/phase-0.md#accepted-risks); blocked on private repo without GitHub Pro and not needed in solo-dev mode. Revisit when a second collaborator lands, when the repo goes public, or before mainnet (Phase 5)
+- [x] Enable branch protection on `main`: require CI green, no force-push, no direct push (once collaborators land) — deferred 2026-05-17 per [Phase 0 threat model](docs/threat-models/phase-0.md#accepted-risks); blocked on private repo without GitHub Pro and not needed in solo-dev mode. **Revisit trigger fired 2026-05-27: a second collaborator ([removed]) has landed — the solo-dev assumption no longer holds.** Still blocked on GitHub Pro for a private repo; resolve by enabling Pro (or making the repo public) and turning on branch protection. Originally also gated on repo going public or mainnet (Phase 5)
 - [x] Document the threat model for the scaffolding layer: only the dev box is in scope; no production attack surface yet ([docs/threat-models/phase-0.md](docs/threat-models/phase-0.md))
 
 ### Tests
