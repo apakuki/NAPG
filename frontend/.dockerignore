@@ -1,0 +1,14 @@
+# Keep the build context small and secrets out of the image.
+node_modules
+.next
+.git
+e2e
+test-results
+playwright-report
+*.tsbuildinfo
+# Secrets — NAPG_SESSION_SECRET is provided via `fly secrets`, never baked in.
+.env
+.env.*
+!.env.example
+Dockerfile
+.dockerignore

@@ -1,0 +1,26 @@
+# NAPG frontend — public Next.js app (the Base App mini-app surface).
+# Deploy from this directory:  fly deploy
+#
+# NAPG_API_URL points at the agent app over the 6PN private network; it must
+# match the agent's Fly app name. The backend address never reaches the wire.
+
+app = "napg-frontend-staging"
+primary_region = "syd"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NAPG_API_URL = "http://napg-agent-staging.internal:8080"
+  NODE_ENV = "production"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
