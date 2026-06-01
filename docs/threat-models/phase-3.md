@@ -359,6 +359,40 @@ Farcaster client into trusting.
   remove the `applyGuards` chokepoint. Mitigated by solo-dev mode (no
   collaborators) and gitleaks pre-commit.
 
+## Security scan results (Lighthouse + ZAP, staging)
+
+Run 2026-06-02 against `https://napg-frontend-staging.fly.dev` (manual
+test 3.9). Source logs: `/tmp/lh-staging.json`, `/tmp/zap-rescan.log`.
+
+**Lighthouse (desktop)** — all gates met: Performance 94 (>=80),
+Accessibility 95 (>=90), Best Practices 92 (>=90), SEO 100 (>=90).
+
+**OWASP ZAP baseline (`-m 5`)** — gate is zero HIGH/CRITICAL; met
+(FAIL-NEW 0). First run flagged 7 WARNs; four were fixed and the rescan
+shows PASS 64 / WARN 3 / FAIL 0:
+
+- *Fixed* — HSTS now set (`10035`), `X-Powered-By` dropped (`10037`),
+  and `X-Content-Type-Options` (`10021`) + `Permissions-Policy`
+  (`10063`) now cover `/_next/static/*` assets too. The five static
+  security headers moved to `next.config.ts` `headers()` on `/:path*`
+  (covers static assets the proxy matcher skips); the nonce-based CSP
+  stays in `src/proxy.ts`; `poweredByHeader: false` drops the leak.
+
+The 3 remaining WARNs are **accepted**, none HIGH/CRITICAL:
+
+- **`Server` header version leak (`10036`).** `Server: Fly/<build>` is
+  emitted by Fly's edge proxy, not our app — we cannot unset it from the
+  Next.js layer. Low impact (build id, not an app version); accepted.
+- **Non-Storable Content (`10049`).** Informational: the dashboard and
+  auth routes return `Cache-Control: no-store` by design (live data,
+  authenticated state). Not a vulnerability; the no-store is intentional.
+- **Cross-Origin-Embedder-Policy missing (`90004`).** COEP is
+  deliberately unset: enabling `require-corp` would break the
+  Coinbase Smart Wallet / Passkey popup (`keys.coinbase.com`) and other
+  cross-origin embeds the app depends on. Accepted; revisit only if we
+  ever need `crossOriginIsolated` (e.g. SharedArrayBuffer), which we do
+  not.
+
 ## Next phase delta
 
 Phase 4 (Monetization and Attribution) introduces an x402 payment
