@@ -353,11 +353,16 @@ Farcaster client into trusting.
   decrements are not atomic across concurrent requests. At Phase 3
   single-instance volumes this is invisible; Phase 5 Redis swap closes
   it via INCR + EXPIRE.
-- **Branch protection on `main`** still deferred per
-  [phase-0.md](phase-0.md#accepted-risks). A hostile contributor with
-  push access could ship a CSP regression, replace the public key, or
-  remove the `applyGuards` chokepoint. Mitigated by solo-dev mode (no
-  collaborators) and gitleaks pre-commit.
+- **Branch protection on `main`** — revisit fired 2026-06-02. The
+  "solo-dev mode" justification no longer holds: a second collaborator
+  with push access (`maxvillev` / Valerie) has landed, so a bad push
+  (CSP regression, public-key swap, removing the `applyGuards`
+  chokepoint) is now possible from two accounts, not one. Decision: keep
+  the repo private and **upgrade to GitHub Pro** to unlock a protection
+  ruleset (Free + private cannot use rulesets or classic protection).
+  Pending the (owner-only, billing) upgrade; ruleset payload and apply
+  steps in [docs/runbooks/branch-protection.md](../runbooks/branch-protection.md).
+  Until active, the only guard remains the gitleaks pre-commit hook.
 
 ## Security scan results (Lighthouse + ZAP, staging)
 
