@@ -268,12 +268,31 @@ device.
 4. Tap **Share to Farcaster** on `/breaches` or `/protocols/aerodrome`.
 
 **Expected**
-- [ ] App loads, theme-color matches the system chrome (dark by default).
-- [ ] Bottom nav clears the iOS home indicator (safe-area-inset works).
-- [ ] All tap targets feel ≥44px (no accidental neighbouring presses).
+- [x] App loads, theme-color matches the system chrome (dark by default).
+- [x] Bottom nav clears the iOS home indicator (safe-area-inset works).
+- [x] All tap targets feel ≥44px (no accidental neighbouring presses).
 - [ ] SIWF flow completes without a third-party cookie warning.
 - [ ] Share-to-Farcaster opens the compose sheet with the text + embed
       pre-filled; posting renders a launch-frame button card.
+
+**Partial result — 2026-06-02 (staging, simulated webview).** Ran against
+`https://napg-frontend-staging.fly.dev` in a headless Chromium emulating the
+Base App in-app browser (iPhone 14 Pro viewport, dark scheme,
+`viewport-fit=cover`, Base App / Farcaster UA token). 16/16 structural checks
+passed, covering the markup half of this procedure:
+- App loads (HTTP 200); dark `theme-color` is `#0a0a0a`; `viewport-fit=cover`.
+- Bottom nav is sticky and pads `env(safe-area-inset-bottom)`; three nav links,
+  smallest tap target 44px.
+- Dashboard -> Breaches -> Settings nav resolves; `/settings` shows the
+  Sign in with Farcaster affordance.
+- Share-to-Farcaster anchor points at `farcaster.xyz/~/compose` with pre-filled
+  `text` + `embeds[]`, `target=_blank rel="noopener noreferrer"`.
+
+Still open (require a real device + Phase 5 directory listing, cannot be
+reproduced headless): the third-party-cookie-free SIWF round-trip with a real
+Farcaster signer, Passkey Smart Wallet creation, tactile tap feel, opening from
+the Base App mini-app directory, and the share sheet actually posting a
+launch-frame card. The two unchecked boxes above stay unchecked until then.
 
 ---
 
