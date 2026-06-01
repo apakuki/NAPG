@@ -21,6 +21,18 @@ dependencies = [
   "cryptography>=43.0.0",
 ]
 
+# Security floor for starlette (transitive via fastapi): force the patched
+# 1.0.1 that clears PYSEC-2026-161, which fastapi's own range does not require.
+# The other flagged transitives (cryptography, pynacl, x402, paramiko) are
+# pinned below their patched releases by coinbase-agentkit 0.7.4 (the latest),
+# so they cannot be bumped without forking upstream; they are allowlisted in
+# the CI pip-audit step instead, with the reasons documented there. Revisit
+# both this constraint and that allowlist when coinbase-agentkit updates.
+[tool.uv]
+constraint-dependencies = [
+  "starlette>=1.0.1",
+]
+
 [dependency-groups]
 dev = [
   "pytest>=8.3.0",

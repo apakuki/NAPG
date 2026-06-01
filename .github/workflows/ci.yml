@@ -40,9 +40,26 @@ jobs:
         run: uv run pytest
 
       - name: pip-audit
+        # The ignored advisories are all in transitive deps that
+        # coinbase-agentkit 0.7.4 (the latest release) pins below their patched
+        # versions, so we cannot bump them without forking upstream:
+        #   cryptography <=46.0.0  (fixes are 46.0.5/46.0.6/46.0.7)
+        #     PYSEC-2026-36, PYSEC-2026-35, CVE-2026-26007
+        #   pynacl <=1.6.0         (fix is 1.6.2)   CVE-2025-69277
+        #   x402 ==1.0.0           (fix is 2.3.0)   GHSA-qr2g-p6q7-w82m
+        #   paramiko 3.5.1         (no fix released yet)  CVE-2026-44405
+        # starlette PYSEC-2026-161 IS fixed (constraint to >=1.0.1 in
+        # agent/pyproject.toml). Re-evaluate this allowlist on every
+        # coinbase-agentkit bump; drop entries as upstream relaxes the pins.
         run: |
           uv export --no-emit-project --format requirements-txt --quiet -o /tmp/requirements.txt
-          uvx pip-audit -r /tmp/requirements.txt
+          uvx pip-audit -r /tmp/requirements.txt \
+            --ignore-vuln PYSEC-2026-36 \
+            --ignore-vuln PYSEC-2026-35 \
+            --ignore-vuln CVE-2026-26007 \
+            --ignore-vuln CVE-2025-69277 \
+            --ignore-vuln GHSA-qr2g-p6q7-w82m \
+            --ignore-vuln CVE-2026-44405
 
   frontend:
     name: frontend (next.js)
