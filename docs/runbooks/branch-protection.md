@@ -1,13 +1,19 @@
 # Branch protection on `main`
 
-Status as of 2026-06-02: **decided, pending GitHub Pro upgrade.**
+Status as of 2026-06-02: **APPLIED and active.** `apakuki` upgraded to
+GitHub Pro and the `protect-main` ruleset (id `17135858`) is live on
+`main`, verified by a direct push that GitHub rejected ("Changes must be
+made through a pull request" + "3 of 3 required status checks are
+expected"). All changes — including to this file — now go through pull
+requests. A stray empty/disabled `NAPG Rules` ruleset left over from the
+GitHub UI was deleted at the same time.
 
-`main` has had no server-side protection since the Phase 0 deferral
-(2026-05-17) — direct push allowed, history rewritable. The revisit
-trigger fired when a second collaborator with push access landed
-(`maxvillev`, confirmed to be Valerie). With more than one person able
-to push, "solo-dev mode" no longer justifies the deferral, so we are
-enabling a protection ruleset.
+`main` had no server-side protection from the Phase 0 deferral
+(2026-05-17) until this change — direct push allowed, history rewritable.
+The revisit trigger fired when a second collaborator with push access
+landed (`maxvillev`, confirmed to be Valerie). With more than one person
+able to push, "solo-dev mode" no longer justified the deferral, so the
+protection ruleset below was enabled.
 
 ## Why a ruleset and not classic branch protection
 
