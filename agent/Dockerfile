@@ -29,6 +29,9 @@ RUN useradd --create-home --uid 10001 napg \
  && mkdir -p /data && chown -R napg:napg /data /app
 USER napg
 
-# Internal-only: reached by the frontend over Fly 6PN; no public service.
+# Internal-only: reached by the frontend over Fly 6PN, which is IPv6-only.
+# Bind :: (IPv6 wildcard, dual-stack also serves IPv4) so the .internal address
+# resolves and accepts connections; 0.0.0.0 would bind IPv4 only and the 6PN
+# connection would be refused.
 EXPOSE 8080
-CMD ["python", "-m", "napg", "serve", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["python", "-m", "napg", "serve", "--host", "::", "--port", "8080"]
