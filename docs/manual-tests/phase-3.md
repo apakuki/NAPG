@@ -247,11 +247,25 @@ docker run -t ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
 ```
 
 **Expected**
-- [ ] Lighthouse Performance ≥80, Best Practices ≥90, Accessibility ≥90,
+- [x] Lighthouse Performance ≥80, Best Practices ≥90, Accessibility ≥90,
       SEO ≥90.
-- [ ] ZAP baseline reports zero HIGH or CRITICAL findings. MEDIUM
+- [x] ZAP baseline reports zero HIGH or CRITICAL findings. MEDIUM
       findings are reviewed; if accepted, recorded in the Phase 3
       threat-model addendum.
+
+**Result — 2026-06-02 (staging, `https://napg-frontend-staging.fly.dev`).**
+- Lighthouse (desktop) PASS: Performance 94, Accessibility 95, Best
+  Practices 92, SEO 100.
+- ZAP baseline (`-m 5`): zero HIGH/CRITICAL. First run had 7 WARNs; four
+  were fixed (HSTS added, `X-Powered-By` dropped, nosniff +
+  Permissions-Policy extended to `/_next/static/*` — static security
+  headers moved to `next.config.ts`, CSP stays in `src/proxy.ts`).
+  Rescan: PASS 64 / WARN 3 / FAIL 0. The 3 remaining WARNs (`Server`
+  version header from Fly's edge, intentional `no-store` cache headers,
+  COEP omitted to keep the Coinbase wallet popup working) are accepted
+  and documented in
+  [docs/threat-models/phase-3.md](../threat-models/phase-3.md#security-scan-results-lighthouse--zap-staging).
+- Re-run against the production URL before mainnet sign-off (Phase 5).
 
 ---
 

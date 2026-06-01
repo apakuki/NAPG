@@ -1,8 +1,13 @@
 /**
  * Next.js 16 proxy (the new name for middleware in v16). Generates a
- * per-request CSP nonce and applies strict CSP + security headers to every
- * navigation request. Static assets, prefetches, and API routes skip the
+ * per-request CSP nonce and applies the nonce-based Content-Security-Policy to
+ * every navigation request. Static assets, prefetches, and API routes skip the
  * proxy via the `matcher` config below.
+ *
+ * The other (static) security headers — HSTS, X-Frame-Options, nosniff,
+ * Referrer-Policy, Permissions-Policy — live in next.config.ts `headers()` so
+ * they also cover the static assets this matcher skips. Only the CSP needs the
+ * per-request nonce, so only the CSP is set here.
  *
  * Trade-off: nonce-based CSP forces dynamic rendering (each request gets a
  * fresh nonce), so static optimization / ISR are off for routes that flow
@@ -12,14 +17,6 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-
-const SECURITY_HEADERS = {
-  "X-Frame-Options": "DENY",
-  "X-Content-Type-Options": "nosniff",
-  "Referrer-Policy": "strict-origin-when-cross-origin",
-  "Permissions-Policy":
-    "camera=(), microphone=(), geolocation=(), interest-cohort=()",
-} as const;
 
 function buildCspHeader(nonce: string, isDev: boolean): string {
   // `'strict-dynamic'` lets the nonced script load further scripts without
@@ -57,9 +54,6 @@ export function proxy(request: NextRequest) {
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", csp);
-  for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
-    response.headers.set(key, value);
-  }
   return response;
 }
 
