@@ -1,39 +1,28 @@
 # Branch protection on `main`
 
-Status as of 2026-06-02: **decided, pending GitHub Pro upgrade.**
-
-`main` has had no server-side protection since the Phase 0 deferral
-(2026-05-17) — direct push allowed, history rewritable. The revisit
-trigger fired when a second collaborator with push access landed
-(`[removed]`, confirmed to be [removed]). With more than one person able
-to push, "solo-dev mode" no longer justifies the deferral, so we are
-enabling a protection ruleset.
+Status: **not currently enabled — solo-dev mode.** A protection ruleset
+was briefly active on `main` (enabled 2026-06-02 via GitHub Pro) and then
+removed when the project returned to a single maintainer. With one
+person on the repo, a required-review gate is unsatisfiable (you cannot
+approve your own PR), so `main` is back to direct push and workstation
+hygiene is the active control, consistent with the Phase 0 accepted
+risk. The steps below are retained so protection can be re-enabled
+quickly if another collaborator ever joins.
 
 ## Why a ruleset and not classic branch protection
 
 This repo is **private on the Free plan**. Both classic branch
-protection and rulesets return HTTP 403:
+protection and rulesets return HTTP 403 unless the account is on GitHub
+Pro (or the repo is made public):
 
 > Upgrade to GitHub Pro or make this repository public to enable this
 > feature.
 
-Decision (2026-06-02): **upgrade `apakuki` to GitHub Pro** (~$4/mo) and
-keep the repo private, rather than make it public before launch. Pro
-unlocks rulesets on private repos.
+`apakuki` was upgraded to GitHub Pro on 2026-06-02, which unlocks
+rulesets on private repos; Pro remains active even though the ruleset
+has since been removed.
 
-## Prerequisite (manual, owner-only)
-
-Upgrade the account at <https://github.com/settings/billing> ->
-**Plans** -> GitHub Pro. The `gh` CLI cannot change billing. Confirm:
-
-```bash
-gh api user --jq '.plan.name'        # expect: "pro"
-gh api repos/apakuki/NAPG/rulesets   # expect: [] (200), not 403
-```
-
-## Apply the ruleset
-
-Once Pro is active:
+## Re-enable: apply the ruleset
 
 ```bash
 gh api -X POST repos/apakuki/NAPG/rulesets \
@@ -54,17 +43,17 @@ branch (`~DEFAULT_BRANCH` = `main`):
 
 ## Operational caveat: self-approval
 
-GitHub does not let you approve your own pull request. With
-`required_approving_review_count: 1` and two collaborators, every PR
-Samuel opens needs [removed]'s approval and vice versa. For a two-person
-project that is the intended check. If it proves too heavy, two knobs:
+GitHub does not let you approve your own pull request. The
+`>=1 approving review` rule therefore only works with two or more
+collaborators; with a single maintainer it blocks every merge. If
+re-enabling solo, either drop `required_approving_review_count` to `0`
+(keep the PR + CI gate without a human review requirement) or add an
+admin bypass:
 
-- Add an emergency owner bypass: append to `bypass_actors`
+- Append to `bypass_actors`:
   `{ "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "pull_request" }`
   (RepositoryRole id 5 = Admin), which lets an admin merge without the
   review while still routing through a PR.
-- Or drop `required_approving_review_count` to `0` to keep the PR + CI
-  gate without a human review requirement.
 
 Apply edits by `PUT`ting the updated JSON to
 `repos/apakuki/NAPG/rulesets/{id}`.

@@ -32,7 +32,7 @@ There are no secrets, signing keys, or production credentials in scope this phas
 | Secret accidentally committed to git | `.gitignore` excludes `.env*`; gitleaks pre-commit hook (`.pre-commit-config.yaml`); gitleaks CI scan re-checks every push |
 | Vulnerable transitive dependency | `pip-audit` (agent) and `npm audit --audit-level=high` (frontend) run in CI; Dependabot opens PRs weekly for uv, npm, and github-actions ecosystems |
 | Supply-chain attack via build tooling | Lockfiles (`uv.lock`, `package-lock.json`) committed; CI uses `uv sync` and `npm ci` which honour lock pins |
-| CI workflow tampered with via PR | Branch protection on `main` requires CI green and reviewed merges — second collaborator landed 2026-05-27, so enable now (blocked only on GitHub Pro / public repo; see Accepted risks) |
+| CI workflow tampered with via PR | Branch protection on `main` can require CI green and reviewed merges; briefly enabled 2026-06-02 then removed when the project returned to a single maintainer (a review gate is unsatisfiable solo). Re-enable if a collaborator joins; see Accepted risks |
 | Stale or compromised GitHub Action | Dependabot updates the `github-actions` ecosystem weekly; actions are pinned to major-version tags |
 | Compromised contributor workstation | Out of scope for code mitigations; relies on contributor security hygiene |
 
@@ -41,7 +41,7 @@ There are no secrets, signing keys, or production credentials in scope this phas
 - No reproducible builds yet (Docker image work lands in Phase 5).
 - No SBOM published yet (will revisit at Phase 5 cutover).
 - Pre-commit hooks are opt-in — contributors must run `pre-commit install` once. The CI gitleaks job is the backstop for anyone who skipped that step.
-- Branch protection on `main` is deferred (decision recorded 2026-05-17). GitHub's branch-protection and ruleset APIs return `403 Upgrade to GitHub Pro or make this repository public` for the current account+visibility combination, and solo-dev mode means the only attacker is the maintainer's own machine — covered by workstation hygiene. Revisit triggers: (a) a second collaborator joins, (b) the repo goes public, (c) GitHub Pro is purchased, or (d) Phase 5 mainnet cutover — whichever comes first. **Update 2026-05-27: trigger (a) has fired — a second collaborator ([removed]) has landed, so solo-dev no longer holds and "the only attacker is the maintainer's own machine" no longer applies. The technical blocker stands (private repo still needs GitHub Pro, or the repo must go public); resolve one of those and enable branch protection.**
+- Branch protection on `main` is not currently enabled (original deferral recorded 2026-05-17). GitHub's branch-protection and ruleset APIs require GitHub Pro (or a public repo) for this private repo; `apakuki` is on Pro, so a ruleset is technically available. A ruleset was briefly enabled 2026-06-02 and then removed when the project returned to a single maintainer: solo-dev mode means the only attacker is the maintainer's own machine (covered by workstation hygiene), and a required-review gate cannot be satisfied by a sole maintainer (no self-approval). Re-enable triggers: (a) another collaborator joins, (b) the repo goes public, or (c) Phase 5 mainnet cutover — whichever comes first. Re-enable steps are in [docs/runbooks/branch-protection.md](../runbooks/branch-protection.md).
 
 ## Next phase delta
 
