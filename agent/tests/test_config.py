@@ -86,3 +86,8 @@ def test_reporting_signing_key_loads_from_env():
 
 def test_reporting_signing_key_defaults_to_none():
     assert _settings().reporting_signing_key is None
+
+
+def test_builder_code_loads_from_env_and_defaults_to_none():
+    assert _settings().builder_code is None
+    assert _settings(NAPG_BUILDER_CODE="napg").builder_code == "napg"

@@ -27,8 +27,7 @@ from dataclasses import dataclass, field
 
 from napg.agentshield.pipeline import StageResult, TxIntent
 from napg.agentshield.stages.tenderly import TenderlySimulator
-
-_NATIVE_TRANSFER_CALLDATA = "0x"
+from napg.attribution import is_native_or_attribution
 
 
 @dataclass
@@ -77,13 +76,16 @@ def build_honeypot_stage(
     *,
     simulator: TenderlySimulator | None = None,
     cache: HoneypotCache | None = None,
+    builder_code: str | None = None,
 ) -> Callable[[TxIntent], StageResult]:
     """Return a Stage 4 callable.
 
     For native transfers Stage 4 passes trivially — there is no target
-    token. For non-native calldata Stage 4 fails closed with an
-    explanatory reason; the live BUY-then-SELL machinery lands when
-    token-handling actions are introduced.
+    token. A native transfer carrying *exactly* our Builder Code suffix is
+    still a native transfer (the suffix is inert attribution data, no target
+    token), so it passes the same way. For any other non-native calldata Stage 4
+    fails closed; the live BUY-then-SELL machinery lands when token-handling
+    actions are introduced.
 
     `simulator` and `cache` are accepted now so callers can wire them
     in once token actions exist, without changing the stage's external
@@ -93,11 +95,11 @@ def build_honeypot_stage(
     bound_cache = cache if cache is not None else HoneypotCache()
 
     def _stage(intent: TxIntent) -> StageResult:
-        if intent.data == _NATIVE_TRANSFER_CALLDATA:
+        if is_native_or_attribution(intent.data, builder_code):
             return StageResult(
                 stage="honeypot",
                 passed=True,
-                reason="native transfer; no target token to probe",
+                reason="native transfer (optionally Builder Code tagged); no target token to probe",
                 details={"cache_size": len(bound_cache)},
             )
         # Non-native calldata is blocked by Stage 2 today; if we ever reach

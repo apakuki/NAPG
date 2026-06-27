@@ -22,9 +22,9 @@ from datetime import datetime, timezone
 
 from napg.agentshield.pipeline import StageResult, TxIntent
 from napg.agentshield.policy import Denylist, PolicyConfig
+from napg.attribution import is_native_or_attribution
 from napg.audit import AuditLog
 
-_NATIVE_TRANSFER_CALLDATA = "0x"
 _DAILY_WINDOW_SECONDS = 24 * 60 * 60
 
 
@@ -33,6 +33,7 @@ def build_policy_stage(
     policy: PolicyConfig,
     denylist: Denylist,
     audit_log: AuditLog | None = None,
+    builder_code: str | None = None,
     now_provider: Callable[[], float] | None = None,
 ) -> Callable[[TxIntent], StageResult]:
     """Return a Stage 2 callable bound to this policy + denylist.
@@ -40,6 +41,10 @@ def build_policy_stage(
     `audit_log` is optional: without it, the daily-spend ceiling check is
     skipped (e.g. for fast unit tests). With it, recent non-dry-run
     `action` rows are summed against `policy.daily_spend_cap_wei`.
+
+    `builder_code` is the registered ERC-8021 code. When set, a native transfer
+    carrying *exactly* that code's attribution suffix passes the calldata check;
+    any other non-empty calldata still fails closed.
 
     `now_provider` is injectable for time-freezing tests; defaults to
     `time.time`.
@@ -69,13 +74,15 @@ def build_policy_stage(
                 ),
             )
 
-        if intent.data != _NATIVE_TRANSFER_CALLDATA:
-            # ERC-20 calldata decoding lands later in Phase 2 or Phase 5; until
-            # then any non-native call is fail-closed regardless of token_allowlist.
+        if not is_native_or_attribution(intent.data, builder_code):
+            # A native transfer, optionally tagged with our exact Builder Code
+            # suffix, is allowed. ERC-20 calldata decoding lands later; until
+            # then any other non-native call is fail-closed regardless of
+            # token_allowlist.
             return StageResult(
                 stage="policy",
                 passed=False,
-                reason="non-native calldata blocked (ERC-20 decoding not yet implemented)",
+                reason="non-native calldata blocked (only the Builder Code suffix is permitted)",
             )
 
         if audit_log is not None:

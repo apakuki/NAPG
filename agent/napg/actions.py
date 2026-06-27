@@ -35,9 +35,11 @@ from typing import Any, Protocol
 from pydantic import BaseModel, ConfigDict, Field
 
 from napg.agentshield.pipeline import TxIntent, ValidationResult
+from napg.attribution import append_suffix
 from napg.audit import AuditLog
 
 WEI_PER_ETH = Decimal(10) ** 18
+_NATIVE_TRANSFER_CALLDATA = "0x"
 
 
 class _WalletLike(Protocol):
@@ -51,6 +53,7 @@ class _WalletLike(Protocol):
 
     def get_address(self) -> str: ...
     def native_transfer(self, to: str, value: Decimal) -> str: ...
+    def send_transaction(self, transaction: dict[str, Any]) -> str: ...
     def wait_for_transaction_receipt(self, tx_hash: str) -> Any: ...
 
 
@@ -81,6 +84,7 @@ def migrate_to_safe(
     dry_run: bool = True,
     audit_log: AuditLog | None = None,
     validator: Validator | None = None,
+    builder_code: str | None = None,
     rationale: str = "",
     supporting_breaches: tuple[str, ...] = (),
 ) -> ActionRecord:
@@ -89,6 +93,11 @@ def migrate_to_safe(
     `dry_run=True` is the default. Non-dry-run calls require a `validator`:
     AgentShield's `validate_or_die` runs before any wallet method is touched
     and raises `ValidationFailure` on any stage failure or engaged kill-switch.
+
+    `builder_code`, when set, tags the transaction with its ERC-8021 attribution
+    suffix (via `napg.attribution`). A tagged tx carries calldata, so it submits
+    through `send_transaction` rather than the value-only `native_transfer`;
+    AgentShield Stages 2 and 4 permit exactly this suffix and nothing else.
 
     `rationale` and `supporting_breaches` come from the upstream `Decision`
     (when called from the orchestrator) or describe the operator's reason
@@ -105,6 +114,11 @@ def migrate_to_safe(
         raise ValueError(f"safe_address is not a 20-byte 0x-hex address: {safe_address!r}")
 
     from_address = wallet.get_address()
+    calldata = (
+        append_suffix(_NATIVE_TRANSFER_CALLDATA, builder_code)
+        if builder_code
+        else _NATIVE_TRANSFER_CALLDATA
+    )
 
     if dry_run:
         record = ActionRecord(
@@ -126,7 +140,7 @@ def migrate_to_safe(
             from_address=from_address,
             to_address=safe_address,
             value_wei=value_wei,
-            data="0x",
+            data=calldata,
             rationale=rationale,
             supporting_breaches=supporting_breaches,
         )
@@ -134,12 +148,20 @@ def migrate_to_safe(
         # row already landed in the audit log inside validate_or_die.
         validator(intent)
 
-        # CdpEvmWalletProvider.native_transfer expects `value` in whole ether,
-        # not wei — it runs `Web3.to_wei(value, "ether")` internally. Passing
-        # wei here causes the CDP API to read it as 10^18-times-too-much and
-        # reject as "Insufficient balance" regardless of the wallet balance.
-        value_eth = Decimal(value_wei) / WEI_PER_ETH
-        tx_hash = wallet.native_transfer(to=safe_address, value=value_eth)
+        if calldata == _NATIVE_TRANSFER_CALLDATA:
+            # CdpEvmWalletProvider.native_transfer expects `value` in whole
+            # ether, not wei — it runs `Web3.to_wei(value, "ether")` internally.
+            # Passing wei makes the CDP API read 10^18-times-too-much and reject
+            # as "Insufficient balance" regardless of the wallet balance.
+            value_eth = Decimal(value_wei) / WEI_PER_ETH
+            tx_hash = wallet.native_transfer(to=safe_address, value=value_eth)
+        else:
+            # A Builder-Code-tagged tx carries calldata, so it goes through
+            # send_transaction. TxParams `value` is in wei (Web3 standard) — no
+            # ether conversion, unlike native_transfer above.
+            tx_hash = wallet.send_transaction(
+                {"to": safe_address, "value": value_wei, "data": calldata}
+            )
         receipt = wallet.wait_for_transaction_receipt(tx_hash)
         block_number = _extract_block_number(receipt)
         status = _extract_status(receipt)

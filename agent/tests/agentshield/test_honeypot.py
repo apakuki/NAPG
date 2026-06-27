@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from napg.agentshield.pipeline import TxIntent
 from napg.agentshield.stages.honeypot import HoneypotCache, build_honeypot_stage
+from napg.attribution import build_suffix
 
 ADDR_AGENT = "0x" + "a" * 40
 ADDR_SAFE = "0x" + "b" * 40
@@ -34,6 +35,20 @@ def test_native_transfer_passes_trivially() -> None:
 def test_non_native_calldata_fails_closed_until_token_actions_land() -> None:
     stage = build_honeypot_stage()
     result = stage(_intent("0xa9059cbb000000"))
+    assert result.passed is False
+    assert "BUY-then-SELL" in result.reason
+
+
+def test_builder_code_tagged_native_transfer_passes_trivially() -> None:
+    stage = build_honeypot_stage(builder_code="napg")
+    result = stage(_intent(build_suffix("napg")))
+    assert result.passed is True
+    assert "no target token" in result.reason
+
+
+def test_builder_code_suffix_fails_closed_when_none_configured() -> None:
+    stage = build_honeypot_stage()
+    result = stage(_intent(build_suffix("napg")))
     assert result.passed is False
     assert "BUY-then-SELL" in result.reason
 
