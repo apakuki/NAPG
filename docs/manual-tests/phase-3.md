@@ -325,9 +325,22 @@ launch-frame card. The two unchecked boxes above stay unchecked until then.
    rows appear.
 
 **Expected**
-- [ ] Amber callout when agent is unreachable; not a 500 page.
-- [ ] Rows appear after `simulate` runs.
-- [ ] Per-protocol filter is correct.
+- [x] Amber callout when agent is unreachable; not a 500 page.
+- [x] Rows appear after `simulate` runs.
+- [x] Per-protocol filter is correct.
+
+**Result — 2026-06-27 (local, agent backend driven directly).** Ran the
+substance of this procedure against the agent's `GET /api/audit/breaches`
+endpoint (the same surface the frontend proxies):
+- Started `uv run napg serve` (up in 1s, `/api/status` 200).
+- `napg simulate sequencer-delay --amount-eth 0.0001` (dry-run) drove a full
+  scenario -> 3 breaches -> decision (`migrate_to_safe`, conf 0.97) -> action chain.
+- Breach feed grew 9 -> 12 rows; newest row `reorg_is_breach` at the run
+  timestamp. Per-source filter correct: `source=heartbeat` returned all 12,
+  `source=aerodrome` returned 0 (no false positives).
+- `napg audit verify`: 25 total rows, 0 tampered (chain intact across the run).
+- The frontend amber "Cannot reach the audit log" callout (agent-down render) is
+  covered by the existing breach-feed e2e test; not re-driven headless here.
 
 ---
 
