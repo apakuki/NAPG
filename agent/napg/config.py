@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     # distinct from the operational MPC wallet key; never written to the audit
     # DB. Generate with `napg report generate-key`.
     reporting_signing_key: str | None = Field(default=None, alias="NAPG_REPORTING_SIGNING_KEY")
+    # x402 paid-report surface. `x402_pay_to` is the address that receives USDC
+    # for Assurance Reports; without it the endpoint cannot accept payment.
+    x402_pay_to: str | None = Field(default=None, alias="NAPG_X402_PAY_TO")
+    x402_report_price_usdc: str = Field(default="0.10", alias="NAPG_X402_REPORT_PRICE_USDC")
     tenderly_account_slug: str | None = Field(default=None, alias="TENDERLY_ACCOUNT_SLUG")
     tenderly_project_slug: str | None = Field(default=None, alias="TENDERLY_PROJECT_SLUG")
     tenderly_access_key: str | None = Field(default=None, alias="TENDERLY_ACCESS_KEY")
