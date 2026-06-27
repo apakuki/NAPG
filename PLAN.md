@@ -235,37 +235,77 @@ Make NAPG discoverable in the Base App and authable without a password.
 
 ## Phase 4 (Wk 5): Monetization and Attribution
 
-Turn the agent into a revenue surface.
+Turn the agent into a revenue surface — paid Assurance Reports (x402),
+sequencer-reward attribution (Builder Code / ERC-8021), and Guardian Mode
+entitlements — without weakening the AgentShield posture, and with every payment
+and signed report landing in the append-only audit log.
+
+**Sequencing rationale:** reporting identity first (everything signed depends on
+it) -> x402 delivery -> revenue accounting -> Builder Code -> Guardian Mode -> MEV
+gate for token actions -> treasury doc. Each group lands with its own tests and a
+threat-model delta before the next. Security is built into each layer as it lands
+(see the cross-cutting baseline), not bolted on at the end.
+
+**Decisions to lock at kickoff** (from [docs/design/phase-4-mev.md](docs/design/phase-4-mev.md#7-open-questions-for-phase-4-kickoff)):
+1. Which MEV-protected submission endpoint(s) for Base, and the degraded-state fallback (reuse the `resilience.py` circuit-breaker).
+2. Does the first token action need a real swap, or can safe-rotation be expressed as transfers of already-held assets (keeps MEV exposure near-zero longer)?
+3. `max_slippage_bps` default — tune against the Aerodrome USDC/USDT spreads the existing 0x probe already records.
 
 ### Substeps
-- [ ] Register Builder Code on Base.dev
-- [ ] Suffix calldata on every NAPG-originated tx for ERC-8021 attribution
-- [ ] Stand up x402 endpoints: agents pay USDC to receive an Assurance Report
-- [ ] Define the Assurance Report schema (protocol, window, breaches, recommendation, signature)
-- [ ] Implement Guardian Mode subscription scaffolding (no billing UI yet, just the entitlement check)
-- [ ] Document the Native USDC treasury yield path on Base App (~3.35% APY baseline)
+
+**Group A — Reporting identity and Assurance Report**
+- [ ] Dedicated reporting key, separate from the operational MPC wallet key — new signing identity used only to sign reports; never the CDP MPC operational key. Public key published with a `kid` for rotation. Loaded via `pydantic-settings` (`napg.config`), logged as `***`, never written to the audit DB
+- [ ] Assurance Report schema (`napg.reporting`) — Pydantic model `{protocol, window, breaches[], recommendation, generated_at, kid, signature}`, built from the existing audit log (`AuditLog.query`) + breach evaluator output, so a report is a signed view over data NAPG already records
+- [ ] Report signer + `verify_report(public_key)` helper (EIP-712 or detached sig with `kid`); every issued report writes a `report` row to the append-only audit log
+
+**Group B — x402 monetization**
+- [ ] x402 endpoint (`/api/x402/assurance-report`) wired into `napg.api` — unpaid request returns HTTP 402 with payment requirements; valid payment returns the signed Assurance Report
+- [ ] Payment verification — x402 receipt validated as an EIP-712 signed payload; nonce + expiry checked; replay-protected via a persisted nonce store (audit DB, >=30-day retention)
+- [ ] Idempotency — one payment = one report; idempotency key persisted; duplicates rejected at the API edge and return the original report
+
+**Group C — Builder Code attribution (ERC-8021)**
+- [ ] Register Builder Code on Base.dev (production registration may carry to Phase 5 cutover, like the Phase 3 manifest — confirm at kickoff)
+- [ ] Single calldata-suffix helper (`napg.attribution`) — the only place the ERC-8021 suffix is appended; never user-controllable
+- [ ] AgentShield Stage 2 co-evolution (security-critical seam) — the Builder Code suffix turns `migrate_to_safe` calldata from `0x` into a suffix, but Stage 2 currently *requires* empty calldata. Teach Stage 2 to permit *exactly* the suffix produced by the helper on an otherwise-native transfer, while still failing closed on any other non-empty calldata
+
+**Group D — Guardian Mode**
+- [ ] Entitlement scaffolding (no billing UI) — entitlement check reads the audit DB as source of truth, never client claims; unit-tested helper + a stubbed entitlement surface the frontend can gate on later
+
+**Group E — MEV gate for token actions** (from [docs/design/phase-4-mev.md](docs/design/phase-4-mev.md#4-design-make-mev-a-first-class-gate); lands fully in Phase 4, defensively even if the first token action is transfer-only, so any future swap is unsignable without protection)
+- [ ] Stage 2 mandatory slippage floor — extend `TxIntent` with `min_out_wei` / `quoted_out_wei` / token pair; a swap intent without `min_out_wei`, or exceeding `max_slippage_bps` (new signed field in `config/policy.toml`), fails closed
+- [ ] Stage 3 execution-quality state-diff — activate the deferred Tenderly state-diff path (`stages/tenderly.py`) to assert simulated received >= `min_out_wei` before signing
+- [ ] MEV-protected submission endpoint for the swap path only — new `Settings` field (`config.py`); native-transfer path unchanged; circuit-breaker fallback per `monitor/resilience.py`
+- [ ] `realized_slippage_bps_max` breach — post-trade probe comparing realized vs. quoted execution, emitted through the rules engine (`policy/breaches.py`, threshold in `config/breaches.toml`) to the audit log + dashboard
+
+**Group F — Treasury**
+- [ ] Document the Native USDC treasury yield path on Base App (~3.35% APY baseline) — doc only
 
 ### Security
+- [ ] Reporting key strictly separate from the operational MPC key; rotation runbook keyed by `kid`
 - [ ] x402 payment receipts verified as EIP-712 signed payloads; replay-protected with nonce + expiry
-- [ ] Assurance Report payload signed with a **dedicated reporting key**, distinct from the operational wallet key
 - [ ] Idempotency keys on every x402 endpoint: one payment = one report, even if retried
-- [ ] Builder Code suffix is injected by a single calldata helper; never user-controllable; CI grep test enforces this
+- [ ] Builder Code suffix injected only by the single helper; never user-controllable; CI grep test enforces this; Stage 2 permits only that suffix
 - [ ] Revenue accounting writes to the audit DB on every payment; reconcile against onchain receipts at the end of every billing period
 - [ ] Subscription entitlement check uses the audit DB as source of truth, not client claims
+- [ ] No swap signable without a slippage floor (fail-closed Stage 2)
+- [ ] Kill-switch still halts all signing immediately (carried from Phase 2)
 
 ### Tests
-- [ ] On-chain check: a NAPG tx on Sepolia carries the correct Builder Code suffix
+- [ ] On-chain check: a NAPG tx on Sepolia carries the correct Builder Code suffix; a tx-construction path bypassing the helper fails the CI grep test
 - [ ] x402 integration test: a paying client agent gets a signed Assurance Report; a non-paying one gets HTTP 402
-- [ ] Replay test: re-sending the same x402 receipt is rejected
+- [ ] Replay test: re-sending the same x402 receipt is rejected. Idempotency test: a duplicate payment returns the original report, no second report
 - [ ] Signature verification test: tampered Assurance Reports fail validation against the reporting public key
-- [ ] Entitlement-check unit tests for Guardian Mode
+- [ ] Entitlement-check unit tests for Guardian Mode (audit-DB-backed)
+- [ ] MEV gate tests: a swap intent without `min_out_wei` is rejected by Stage 2; Stage 3 rejects a simulated out < `min_out_wei`
 - [ ] Manual test procedures completed: [docs/manual-tests/phase-4.md](docs/manual-tests/phase-4.md)
 
 ### Success criteria
-- [ ] Builder Code registered and visible on Base.dev
+- [ ] Builder Code registered and visible on Base.dev (production registration may carry to Phase 5)
 - [ ] x402 endpoint produces a valid, signed Assurance Report on payment
 - [ ] Replay and tamper tests both pass
+- [ ] No swap is signable without a slippage floor; Stage 3 state-diff blocks an under-minOut fill (MEV gate live)
 - [ ] Revenue accounting reconciles to onchain receipts for a full test period
+- [ ] Phase 4 threat-model addendum filed (x402 payment surface, reporting-key compromise, Builder-Code calldata injection, MEV / adverse-execution on token actions)
 - [ ] User signs off on Phase 4
 
 ### Troubleshooting
@@ -274,6 +314,9 @@ Turn the agent into a revenue surface.
 - **Assurance Report signature fails verification at the consumer** -> wrong key version or key rotated mid-report -> check key-rotation log; re-sign with the active key; publish the consumer-facing public key with a `kid` for future rotations.
 - **Same payment delivered two reports** -> idempotency key missed or storage cleared -> persist idempotency keys with at least 30-day retention; reject duplicates at the API edge, not deep in the handler.
 - **Revenue audit doesn't match onchain receipts** -> off-by-one in pagination or a missed event -> re-run the reconciliation from the last known-good block; never paper over the diff, find the missing event.
+- **Legitimate stable-pair swap keeps reverting on minOut** -> `max_slippage_bps` set too tight for the observed spread -> tune against the Aerodrome USDC/USDT spreads the 0x probe records; never widen it past the point where it stops bounding loss.
+- **Stage 3 blocks a swap the quote said was fine** -> stale or hostile quote, or the state-diff parse is reading the wrong balance delta -> confirm the simulated received amount maps to the right token/recipient; trust the simulation over the quote and fail closed.
+- **Swap submitted but no MEV protection applied** -> a submit path bypassed the protected endpoint -> all token-action submission must route through the configured endpoint after `validate_or_die`; the native-transfer path is the only one allowed to use the default RPC.
 
 ## Phase 5 (Wk 6): Mainnet launch
 
