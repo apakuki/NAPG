@@ -1,8 +1,9 @@
 # Runbook: external infrastructure outage
 
-Status: **Tenderly behaviour is an OPEN DECISION; the rest is documented current
-behaviour.** Written 2026-06-28 after an external review identified correlated
-dependency failure as the sharpest pre-mainnet risk.
+Status: **Tenderly behaviour DECIDED 2026-06-28 (degraded controlled override);
+implementation pending. The rest is documented current behaviour.** Written
+after an external review identified correlated dependency failure as the sharpest
+pre-mainnet risk.
 
 NAPG depends on several external services. Each failure mode below states the
 *current* behaviour and, where a choice is needed, the decision to make before
@@ -28,22 +29,40 @@ the safety migration. The migration is the lowest-risk action in the system: a
 native transfer to a pre-pinned, allowlisted safe address, already bounded by
 Stage 2 dust caps.
 
-**DECISION (needed before mainnet) — pick one:**
+**DECISION — LOCKED 2026-06-28: degraded controlled override (option 2 for
+launch, option 1 as the Phase 5 durable answer).**
 
-1. **Fallback simulator.** Primary Tenderly, fallback to a local `anvil` fork
-   simulation for the state-diff check. Removes the single point of failure;
-   adds a simulation dependency to run/maintain.
-2. **Controlled migration override.** Keep Stage 3 fail-closed for *all* actions
-   except `migrate_to_safe` to the allowlisted safe address; for that one action,
-   a Tenderly outage degrades Stage 3 to a documented, audited override (still
-   gated by Stage 2 caps + the destination allowlist + a distinct operator
-   authorisation). Smallest change; narrowly scoped to the rescue path.
-3. **Accept the risk.** Document that during a Tenderly outage the agent cannot
-   migrate, and rely on a manual operator migration. Simplest; weakest.
+When Tenderly is unavailable, Stage 3 stays fail-closed for **every action
+except** `migrate_to_safe` to the allowlisted safe address. For that one action,
+the gate degrades to a controlled override with all of these conditions ANDed —
+if any is not met, signing stays blocked:
 
-Recommendation to decide on: **option 2** for launch (narrow, auditable, scoped
-to the one action that can tolerate a degraded sim), with **option 1** as the
-durable Phase 5 answer. Do not ship mainnet on option 3 silently.
+```toml
+# Tenderly-outage migration override (all required)
+trigger              = "Tenderly unreachable (transport error / non-200)"
+action               = "migrate_to_safe only"
+destination          = "NAPG_SAFE_CONTRACT_ADDRESS only (allowlisted)"
+calldata             = "native transfer only — data is 0x or the Builder Code suffix"
+value                = "<= Stage 2 per-tx + daily caps (unchanged)"
+contract_interaction = "forbidden — no swaps, approvals, delegatecalls, arbitrary calls"
+human_approval       = "REQUIRED — a distinct operator authorisation, not the agent"
+audit_event          = "MANDATORY — a `migration_override` row before signing"
+```
+
+The design rule: **the override buys back the rescue path, not autonomy.** When
+the deterministic sim gate is gone, a human gate replaces it for exactly one
+narrow action. Everything that makes the override dangerous (swaps, approvals,
+arbitrary destinations, unattended execution) is explicitly forbidden. Stage 2
+caps + the destination allowlist still apply underneath.
+
+Why not just option 1 (anvil fallback) now: it removes the single point of
+failure cleanly and is the right *durable* answer, but it adds a simulator to run
+and keep in sync; the override is a smaller, shippable launch step scoped to the
+one action that can tolerate a degraded sim. Build the anvil fallback in Phase 5
+and the override becomes a rarely-used backstop.
+
+Operator procedure when this fires: see
+[emergency-migration.md](emergency-migration.md).
 
 ---
 
@@ -64,6 +83,12 @@ application primitive we drive. Document it plainly:
 - When Base resumes, the queued decision should re-evaluate against fresh state
   rather than blindly replaying a stale intent (tie-in to the
   `max_simulation_age_seconds` freshness gate, Group E review #1).
+
+**Maximum acceptable Base outage = 24h (launch assumption, locked 2026-06-28).**
+This is the strategic input to treasury policy: a 24h tolerance means 100%
+on-Base treasury is acceptable for launch. If that assumption tightens (e.g. you
+decide you cannot tolerate 72h), the treasury needs cross-chain / off-chain
+reserves. See [treasury-policy.md](../treasury-policy.md).
 
 ## RPC provider degradation (not a full outage)
 

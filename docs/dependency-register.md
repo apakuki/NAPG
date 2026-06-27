@@ -3,55 +3,55 @@
 Status: **living document.** Started 2026-06-28 after an external review noted
 that NAPG has already been forced to pivot twice by upstream change (USDbC and
 Seamless wind-downs), so the external dependencies and their exit plans should be
-tracked explicitly rather than rediscovered under pressure.
+tracked explicitly rather than rediscovered under pressure. Enriched with
+Owner / Detection / RTO columns per the second-round review.
 
-"Criticality" = blast radius if the dependency degrades or disappears.
-Funds-at-risk and safety-action dependencies are HIGH; revenue/UX are MEDIUM;
-analytics/attribution are LOW.
+Columns: **Owner** (who controls it) · **Criticality** (blast radius: HIGH =
+funds/safety, MEDIUM = revenue/UX, LOW = analytics) · **Detection** (how we learn
+it failed) · **Exit / mitigation** · **RTO** (target time to restore the function,
+by our own action — "undefined" where we cannot).
 
 ## Protocols monitored (the product surface)
 
-| Protocol | Role | Criticality | Failure mode | Exit / mitigation |
-|---|---|---|---|---|
-| Aerodrome (USDC/USDT via 0x) | Liquidity-depth + peg probe | Medium | Pool wound down or repriced (cf. USDbC) | Repoint the pair in config; the probe is pair-agnostic. Precedent: USDC/USDbC -> USDC/USDT, 2026-05-19 |
-| Morpho Blue (WETH-USDC, cbBTC-USDC) | Lending-market state poller | Medium | Market deprecated / oracle change (cf. Seamless) | Repoint markets in config; monitor is market-id driven. Precedent: Seamless -> Morpho Blue, 2026-05-19 |
+| Dependency (role) | Owner | Criticality | Detection | Exit / mitigation | RTO |
+|---|---|---|---|---|---|
+| Aerodrome USDC/USDT via 0x (liquidity + peg probe) | DEX / DAO | Medium | Probe error / peg breach / liquidity drop | Repoint pair in config (pair-agnostic). Precedent: USDbC -> USDT 2026-05-19 | ~1h (config) |
+| Morpho Blue WETH-USDC, cbBTC-USDC (lending state) | DAO | Medium | Poll error / governance monitoring | Repoint markets in config (market-id driven). Precedent: Seamless -> Morpho 2026-05-19 | ~1h (config) |
 
 The pivots above are *why* this register exists: a monitored protocol changing is
 a when, not an if. Keep monitor targets in config, never hard-coded.
 
 ## Infrastructure (funds + safety path)
 
-| Dependency | Role | Criticality | Failure mode | Exit / mitigation |
-|---|---|---|---|---|
-| Coinbase CDP (MPC wallet + TEE signing) | All signing authority | **High** | Outage = no signing; credential leak = [key-compromise.md](runbooks/key-compromise.md) | No alternative signer by design (MPC-only). Outage is fail-safe (no action). Compromise has a recovery playbook |
-| Base (L2 / sequencer) | The chain itself | **High** | Sequencer down = no on-chain action, safe state unreachable | Network-level; cannot engineer around. Detect + record + re-evaluate on resume. [infra-outage.md](runbooks/infra-outage.md) |
-| Circle / USDC | Treasury + x402 settlement asset | **High** | Depeg, freeze, regulatory action | Treasury concentration policy (Group F, pending): max single-asset / single-issuer exposure. Currently testnet only |
-| Tenderly (AgentShield Stage 3) | Simulation gate before signing | **High** | Outage halts all signing — incl. the safety migration (correlated-failure risk) | OPEN DECISION in [infra-outage.md](runbooks/infra-outage.md): fallback anvil sim vs controlled migration override |
+| Dependency (role) | Owner | Criticality | Detection | Exit / mitigation | RTO |
+|---|---|---|---|---|---|
+| Coinbase CDP — MPC wallet + TEE signing | Coinbase | **High** | Signing call errors | No alternative signer by design. Outage is fail-safe (no action). Leak: [key-compromise.md](runbooks/key-compromise.md) | Outage: vendor-bound. Compromise: ~1h (rotate) |
+| Base — L2 / sequencer | Coinbase | **High** | RPC heartbeat (block age / latency) | Network-level; cannot engineer around. Detect + record + re-evaluate on resume. [infra-outage.md](runbooks/infra-outage.md) | **Undefined** (max acceptable outage assumed 24h) |
+| Circle / USDC — treasury + x402 asset | Circle | **High** | Peg probe; external depeg/freeze news | [treasury-policy.md](treasury-policy.md): concentration limits + max acceptable permanent loss (5%) | Depeg: vendor-bound; mitigated by policy |
+| Tenderly — AgentShield Stage 3 sim | Tenderly | **High** | API health (transport error / non-200) | **DECIDED:** degraded controlled override for the safety migration; anvil-fork fallback in Phase 5. [infra-outage.md](runbooks/infra-outage.md) | Override: immediate (human-gated). Anvil: Phase 5 |
 
 ## Infrastructure (reasoning, revenue, UX)
 
-| Dependency | Role | Criticality | Failure mode | Exit / mitigation |
-|---|---|---|---|---|
-| Anthropic (Claude) | Reasoner + Stage 1 Intent Judge | Medium | Outage = no Decision = no action (fail-safe). Single dep for two layers | Stage 2 is deterministic and bounds any proposed action; LLM has zero fund authority. Direct SDK, swappable |
-| 0x API | Aerodrome quote source | Medium | Outage / bad quote | Rate-limit + circuit breaker (`resilience.py`); card degrades, not 500. Multi-source pricing is a review #13 hardening (TWAP/Chainlink/DEX deviation checks) — not yet built |
-| Tenderly (as above) | — | — | — | — |
-| Farcaster / SIWF relay | Auth | Medium | Relay down = no new logins | Existing sessions keep working (HttpOnly cookie); login retries |
-| Base.dev / ERC-8021 indexer | Builder Code attribution | Low | Attribution not counted | No fund impact; suffix is inert calldata. Registration carried to Phase 5 |
-| x402 facilitator | On-chain settlement of verified payments | Medium | Verified payment not settled on-chain | Deferred (Group B verifies + accounts; settlement is the facilitator wiring). Reconciliation (4.14) catches gaps |
-| Fly.io | Host | Medium | Host outage = agent down (fail-safe) | Two-app topology; Phase 5 production host decision. Audit DB on a Fly volume + backups |
+| Dependency (role) | Owner | Criticality | Detection | Exit / mitigation | RTO |
+|---|---|---|---|---|---|
+| Anthropic — reasoner + Stage 1 Intent Judge | Anthropic | Medium | API errors | No Decision = no action (fail-safe). Stage 2 deterministic backstop; LLM has zero fund authority. Judge on a different Claude model (decision 6) | Vendor-bound; fail-safe meanwhile |
+| 0x API — Aerodrome quote source | 0x | Medium | Probe error / quote anomaly | Rate-limit + circuit breaker (`resilience.py`); card degrades. Multi-source pricing is review #13 (not yet built) | ~mins (breaker) |
+| Farcaster / SIWF relay — auth | Farcaster | Medium | Relay errors on login | Existing HttpOnly sessions keep working; logins retry | Vendor-bound (existing users unaffected) |
+| x402 facilitator — on-chain settlement | TBD | Medium | Settlement vs audit reconciliation (4.14) | Deferred (Group B verifies + accounts; settlement is facilitator wiring) | Phase 4/5 |
+| Base.dev / ERC-8021 indexer — attribution | Coinbase | Low | Attribution counts | No fund impact; suffix is inert calldata; registration carried to Phase 5 | n/a |
+| Fly.io — host | Fly.io | Medium | Health checks / uptime | Two-app topology; audit DB on a Fly volume + backups; Phase 5 host review | Vendor-bound; restore from backup |
 
 ## Concentration notes (review #5, #14)
 
-- **Treasury** is 100% native USDC by default today. Before any real treasury
-  balance, write a concentration policy (Group F): `max_single_issuer_exposure`,
-  `max_protocol_exposure`, and a stated **maximum acceptable permanent loss** —
-  yield is never free (smart-contract / protocol / depeg / governance /
-  regulatory risk).
-- **Stacked HIGH dependencies on the Coinbase stack** (CDP + Base + USDC are all
-  Coinbase/Circle-adjacent). This is inherent to "building on Base" and is a
-  deliberate product choice, but it means a single-ecosystem incident is
-  correlated across signing, settlement, and treasury. Worth stating in any
-  risk disclosure.
+- **Treasury concentration is now defined as policy** (not deferred) in
+  [treasury-policy.md](treasury-policy.md): `max_acceptable_permanent_loss` (5%),
+  per-protocol cap (40%), and the 24h Base-outage assumption that makes 100%
+  on-Base USDC acceptable *for launch*. Enforcement code is Group F; the limits
+  are architecture now because they set the migration/outage/rescue assumptions.
+- **Stacked HIGH dependencies on the Coinbase/Circle stack** (CDP + Base + USDC).
+  Inherent to building on Base and a deliberate choice, but a single-ecosystem
+  incident is correlated across signing, settlement, and treasury. State this in
+  any risk disclosure rather than treating the three as independent.
 
 ## Review the register
 
