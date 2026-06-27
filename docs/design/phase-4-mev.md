@@ -166,18 +166,28 @@ quality signal.
 - This note is **design-only**; none of section 4 is built. Each item becomes a
   Phase 4 substep with its own tests and a line in the Phase 4 threat model.
 
-## 7. Open questions for Phase 4 kickoff
+## 7. Open questions for Phase 4 kickoff — RESOLVED 2026-06-27
 
-- Which MEV-protected submission endpoint(s) are available and appropriate for
-  Base mainnet at build time, and what is the fallback if one is degraded
-  (reuse the circuit-breaker pattern from
-  [`resilience.py`](../../agent/napg/monitor/resilience.py))?
-- Does the first token action actually need a swap, or can the safe-rotation be
-  expressed as transfers of already-held assets (which keeps exposure near-zero
-  for longer)? Prefer the lowest-MEV action that meets the product need.
-- What `max_slippage_bps` default is tight enough to bound loss but loose enough
-  not to revert legitimate stable-pair rotations? Tune against observed Aerodrome
-  USDC/USDT spreads the existing probe already records.
+- **MEV-protected submission endpoint?** -> Pluggable seam, default standard Base
+  RPC. Flashbots Protect does not support Base (June 2026) and Base has no public
+  mempool, so the frontrunning surface is already limited. The hard MEV bound is
+  on-chain `min_out_wei` (Stage 2) + Stage 3 state-diff, not the endpoint. New
+  `config.py` field defaults to the standard Base RPC (CDP-managed submission);
+  degraded-state fallback uses the
+  [`resilience.py`](../../agent/napg/monitor/resilience.py) circuit-breaker with
+  no silent fallback to an unprotected path. Repoint at a private endpoint when
+  Base infra / TEE-ZK sequencing matures (NAPG benefits with no code change).
+- **First token action: swap or transfer?** -> Transfer-only. Safe-rotation moves
+  already-held assets (near-zero MEV, like `migrate_to_safe`). The full Group E
+  gate still lands defensively so any future swap is unsignable without
+  protection. A real DEX swap is added only when safe-rotation must convert a
+  depegging asset.
+- **`max_slippage_bps` default?** -> 50 bps (0.5%), ~10x the observed Aerodrome
+  USDC/USDT spread (~5 bps): bounds loss while leaving headroom so legit stable
+  rotations don't revert. Per-pair override for volatile pairs added later.
+
+Tracked as locked kickoff decisions in
+[PLAN.md Phase 4](../../PLAN.md#phase-4-wk-5-monetization-and-attribution).
 
 ## 8. References
 
