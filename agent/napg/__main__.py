@@ -28,6 +28,12 @@ from napg.monitor.rpc import RpcHeartbeat
 from napg.orchestrator import run_cycle
 from napg.policy.breaches import load_thresholds
 from napg.reasoning import Reasoner
+from napg.reporting import (
+    AssuranceReport,
+    default_reporting_public_key_path,
+    generate_seed_hex,
+    verify_report,
+)
 from napg.scenarios import sequencer_delay_heartbeat
 from napg.wallet import build_agent_wallet
 
@@ -256,6 +262,55 @@ def _cmd_policy_verify(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_report_generate_key(args: argparse.Namespace) -> int:
+    """Generate the dedicated Assurance Report signing keypair (Ed25519).
+
+    Prints the seed for NAPG_REPORTING_SIGNING_KEY (secret; never commit it) and
+    writes the public key to agent/config/reporting_public_key.pem (publish it so
+    consumers can verify reports). Refuses to clobber an existing public key.
+    """
+    public_path = Path(args.public_key) if args.public_key else default_reporting_public_key_path()
+    if public_path.exists():
+        print(
+            f"refusing to overwrite existing public key at {public_path}; "
+            "remove it manually first if you are intentionally rotating.",
+            file=sys.stderr,
+        )
+        return 2
+    seed_hex, public_pem = generate_seed_hex()
+    public_path.parent.mkdir(parents=True, exist_ok=True)
+    public_path.write_bytes(public_pem)
+    print(
+        json.dumps(
+            {
+                "reporting_signing_key": seed_hex,
+                "public_key_path": str(public_path),
+                "note": (
+                    "Set NAPG_REPORTING_SIGNING_KEY to the seed above (secret; "
+                    "never commit it). Commit/publish the public key so consumers "
+                    "can verify reports."
+                ),
+            },
+            indent=2,
+        )
+    )
+    return 0
+
+
+def _cmd_report_verify(args: argparse.Namespace) -> int:
+    """Verify an Assurance Report's signature against the published public key."""
+    report = AssuranceReport.model_validate_json(Path(args.path).read_text(encoding="utf-8"))
+    public_path = Path(args.public_key) if args.public_key else default_reporting_public_key_path()
+    verify_report(report, public_path.read_bytes())
+    print(
+        json.dumps(
+            {"verified": str(args.path), "kid": report.kid, "public_key": str(public_path)},
+            indent=2,
+        )
+    )
+    return 0
+
+
 def _cmd_serve(args: argparse.Namespace) -> int:
     """Run the FastAPI app via uvicorn. Imported lazily so tests don't need uvicorn."""
     import uvicorn  # lazy: keeps uvicorn out of the import path for `napg` consumers
@@ -358,6 +413,30 @@ def main(argv: list[str] | None = None) -> int:
         help="override agent/config/policy_public_key.pem (default)",
     )
 
+    report = sub.add_parser(
+        "report",
+        help="Assurance Report signing-key management (Ed25519)",
+    )
+    report_sub = report.add_subparsers(dest="report_command")
+    report_genkey = report_sub.add_parser(
+        "generate-key",
+        help="generate the reporting keypair; print the seed, write the public key",
+    )
+    report_genkey.add_argument(
+        "--public-key",
+        default=None,
+        help="override agent/config/reporting_public_key.pem (default)",
+    )
+    report_verify = report_sub.add_parser(
+        "verify", help="verify an Assurance Report's signature against the public key"
+    )
+    report_verify.add_argument("path", help="report JSON file to verify")
+    report_verify.add_argument(
+        "--public-key",
+        default=None,
+        help="override agent/config/reporting_public_key.pem (default)",
+    )
+
     serve = sub.add_parser(
         "serve",
         help="run the FastAPI read endpoint that powers the Service Assurance Dashboard",
@@ -403,6 +482,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.policy_command == "verify":
             return _cmd_policy_verify(args)
         policy.print_help()
+        return 0
+    if args.command == "report":
+        if args.report_command == "generate-key":
+            return _cmd_report_generate_key(args)
+        if args.report_command == "verify":
+            return _cmd_report_verify(args)
+        report.print_help()
         return 0
     if args.command == "serve":
         return _cmd_serve(args)

@@ -77,3 +77,12 @@ def test_active_rpc_urls_includes_fallback_when_set():
 def test_fallback_url_must_also_be_https():
     with pytest.raises(ValidationError, match="https"):
         _settings(BASE_SEPOLIA_RPC_URL_FALLBACK="http://fallback.example/rpc")
+
+
+def test_reporting_signing_key_loads_from_env():
+    s = _settings(NAPG_REPORTING_SIGNING_KEY="ab" * 32)
+    assert s.reporting_signing_key == "ab" * 32
+
+
+def test_reporting_signing_key_defaults_to_none():
+    assert _settings().reporting_signing_key is None
