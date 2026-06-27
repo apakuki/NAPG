@@ -346,9 +346,44 @@ endpoint (the same surface the frontend proxies):
 
 ## Sign-off checklist
 
-- [ ] Procedures 3.1–3.11 completed.
-- [ ] Lighthouse and ZAP findings reviewed (any non-rejected medium
+- [x] Procedures 3.1–3.11 completed.
+- [x] Lighthouse and ZAP findings reviewed (any non-rejected medium
       severity items captured in `docs/threat-models/phase-3.md`).
-- [ ] Threat-model addendum filed for Phase 3 (new attack surfaces:
+- [x] Threat-model addendum filed for Phase 3 (new attack surfaces:
       SIWF relay trust, Passkey wallet, CSRF/rate-limit deferred-state).
-- [ ] User signs off in chat with name + date.
+- [x] User signs off in chat with name + date — Samuel Apakuki Nayacakalou,
+      2026-06-27.
+
+## Sign-off result — 2026-06-27
+
+All Phase 3 procedures verified across local + staging
+(`https://napg-frontend-staging.fly.dev`):
+
+- **3.1 SIWF login** (real device): signed in with a real Farcaster account
+  via the inline QR; `/settings` rendered "Signed in as `<fid>`".
+- **3.2 signature verification** (live curl): never-issued token ->
+  `{"state":"unknown"}`; empty token -> HTTP 400.
+- **3.3 CSRF guard** (live curl): cross-origin POST -> 403, no-Origin POST ->
+  403, same-origin POST -> 200.
+- **3.4 rate-limit** (live parallel burst): 62 x 200 + 18 x 429 with the
+  token-bucket cutoff (sequential curls don't saturate the 60-token burst at
+  4 tok/s; parallel does).
+- **3.5 CSP + cookie audit**: live headers carry `script-src`/`style-src`
+  nonce + `strict-dynamic` with no `unsafe-inline`; per-request nonce rotates.
+  A devtools console violation (nav inline `style` attribute) was found and
+  fixed (moved to a `.safe-bottom` class) + redeployed. Session storage
+  confirmed empty; cookie flags `HttpOnly`/`Secure`/`SameSite=Lax` enforced +
+  unit-tested in `lib/session.ts`.
+- **3.6 Basename** (real device): user's Basename resolved on `/settings`.
+- **3.7 Passkey Smart Wallet** (real device): Face ID created the wallet, both
+  capability dots green (atomic batch + sponsored gas), no seed phrase shown.
+- **3.8 manifest + Frame embeds**: shape-verified (smoke).
+- **3.9 Lighthouse + ZAP**: recorded 2026-06-02 (Lighthouse desktop pass; ZAP
+  zero HIGH/CRITICAL). Production-URL re-run carried to Phase 5.
+- **3.10 in-app browser**: markup half done (simulated webview, 16/16). Real-
+  device half carried to Phase 5 (needs the directory listing).
+- **3.11 breach feed**: verified 2026-06-27 (see result above).
+
+**Carried to Phase 5 frontend cutover** (deploy-gated on the production
+domain, not build defects): Base App directory submission, real-device in-app-
+browser pass, and production `accountAssociation` signing.
