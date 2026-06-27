@@ -21,16 +21,20 @@ dependencies = [
   "cryptography>=43.0.0",
 ]
 
-# Security floor for starlette (transitive via fastapi): force the patched
-# 1.0.1 that clears PYSEC-2026-161, which fastapi's own range does not require.
-# The other flagged transitives (cryptography, pynacl, x402, paramiko) are
-# pinned below their patched releases by coinbase-agentkit 0.7.4 (the latest),
-# so they cannot be bumped without forking upstream; they are allowlisted in
-# the CI pip-audit step instead, with the reasons documented there. Revisit
-# both this constraint and that allowlist when coinbase-agentkit updates.
+# Security floors for transitive deps whose own dependents (fastapi,
+# coinbase-agentkit, web3) do not yet require the patched releases. Each line
+# forces a version that clears CVEs pip-audit would otherwise fail on. Anything
+# coinbase-agentkit 0.7.4 (the latest) hard-caps below its patched release
+# cannot be bumped here without forking upstream; those stay on the CI pip-audit
+# --ignore-vuln allowlist with reasons documented there. Revisit when the
+# upstreams update.
 [tool.uv]
 constraint-dependencies = [
-  "starlette>=1.0.1",
+  "starlette>=1.3.1",
+  "aiohttp>=3.14.1",
+  "pyjwt>=2.13.0",
+  "pydantic-settings>=2.14.2",
+  "python-multipart>=0.0.31",
 ]
 
 [dependency-groups]
