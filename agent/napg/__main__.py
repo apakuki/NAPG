@@ -121,6 +121,7 @@ def _cmd_migrate(args: argparse.Namespace) -> int:
             dry_run=not args.execute,
             audit_log=log,
             validator=validator,
+            builder_code=settings.builder_code,
             rationale=(
                 "operator-initiated migration via `napg migrate --execute`"
                 if args.execute
@@ -177,6 +178,7 @@ def _cmd_simulate_sequencer_delay(args: argparse.Namespace) -> int:
             value_wei=value_wei,
             dry_run=not args.execute,
             validator=validator,
+            builder_code=settings.builder_code,
         )
 
     print(report.model_dump_json(indent=2))
@@ -199,6 +201,9 @@ class _DryRunWallet:
         return self._address
 
     def native_transfer(self, to: str, value: str) -> str:  # pragma: no cover - dry-run guard
+        raise RuntimeError("_DryRunWallet cannot submit transactions; rerun with --execute")
+
+    def send_transaction(self, transaction: dict) -> str:  # pragma: no cover - dry-run guard
         raise RuntimeError("_DryRunWallet cannot submit transactions; rerun with --execute")
 
     def wait_for_transaction_receipt(self, tx_hash: str) -> object:  # pragma: no cover

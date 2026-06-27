@@ -73,6 +73,7 @@ def build_production_validator(
         policy=policy_config,
         denylist=denylist,
         audit_log=audit_log,
+        builder_code=settings.builder_code,
     )
     tenderly_stage = build_tenderly_stage(
         account_slug=settings.tenderly_account_slug,
@@ -80,7 +81,7 @@ def build_production_validator(
         access_key=settings.tenderly_access_key,
         network_id=chain_id,
     )
-    honeypot_stage = build_honeypot_stage()
+    honeypot_stage = build_honeypot_stage(builder_code=settings.builder_code)
 
     def _validate(intent: TxIntent) -> ValidationResult:
         return validate_or_die(

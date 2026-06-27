@@ -81,6 +81,46 @@ def test_execute_converts_wei_to_whole_ether_decimal() -> None:
     assert value == Decimal("1")
 
 
+def test_builder_code_submits_via_send_transaction_with_suffix() -> None:
+    from napg.attribution import build_suffix
+
+    wallet = _wallet()
+    wallet.send_transaction.return_value = "0x" + "ef" * 32
+
+    captured: list[TxIntent] = []
+
+    def _capturing_validator(intent: TxIntent) -> ValidationResult:
+        captured.append(intent)
+        return _passing_validator(intent)
+
+    record = migrate_to_safe(
+        wallet,
+        SAFE,
+        5_000,
+        dry_run=False,
+        validator=_capturing_validator,
+        builder_code="napg",
+    )
+
+    # Tagged tx carries calldata -> send_transaction, not native_transfer.
+    wallet.native_transfer.assert_not_called()
+    wallet.send_transaction.assert_called_once()
+    tx = wallet.send_transaction.call_args.args[0]
+    assert tx["to"] == SAFE
+    assert tx["value"] == 5_000  # wei, not ether
+    assert tx["data"] == build_suffix("napg")
+    # The validated intent declared the same suffix the wallet submitted.
+    assert captured[0].data == build_suffix("napg")
+    assert record.tx_hash == "0x" + "ef" * 32
+
+
+def test_no_builder_code_still_uses_native_transfer() -> None:
+    wallet = _wallet()
+    migrate_to_safe(wallet, SAFE, 5_000, dry_run=False, validator=_passing_validator)
+    wallet.native_transfer.assert_called_once()
+    wallet.send_transaction.assert_not_called()
+
+
 def test_receipt_status_zero_reports_failure() -> None:
     wallet = _wallet()
     wallet.wait_for_transaction_receipt.return_value = SimpleNamespace(block_number=1, status=0)

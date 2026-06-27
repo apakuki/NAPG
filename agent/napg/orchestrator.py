@@ -61,6 +61,7 @@ def run_cycle(
     value_wei: int = 0,
     dry_run: bool = True,
     validator: Callable[[TxIntent], ValidationResult] | None = None,
+    builder_code: str | None = None,
     now: float | None = None,
 ) -> CycleReport:
     """Run one decision cycle and return a report of what happened.
@@ -106,6 +107,7 @@ def run_cycle(
             dry_run=dry_run,
             audit_log=audit_log,
             validator=validator,
+            builder_code=builder_code,
             rationale=decision.rationale,
             supporting_breaches=decision.supporting_breaches,
         )

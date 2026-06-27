@@ -18,6 +18,7 @@ from napg.agentshield.policy import (
     verify_file,
 )
 from napg.agentshield.stages.policy import build_policy_stage
+from napg.attribution import build_suffix
 from napg.audit import AuditLog
 
 # A pair of well-formed addresses for use across the tests.
@@ -214,6 +215,39 @@ def test_stage_fails_on_non_native_calldata() -> None:
     result = stage(_intent(data="0xa9059cbb000000"))
     assert result.passed is False
     assert "non-native calldata" in result.reason
+
+
+def test_stage_passes_native_transfer_tagged_with_builder_code() -> None:
+    stage = build_policy_stage(
+        policy=DEFAULT_POLICY, denylist=DEFAULT_DENYLIST, builder_code="napg"
+    )
+    result = stage(_intent(data=build_suffix("napg")))
+    assert result.passed is True
+
+
+def test_stage_blocks_builder_code_suffix_when_none_configured() -> None:
+    stage = build_policy_stage(policy=DEFAULT_POLICY, denylist=DEFAULT_DENYLIST)
+    result = stage(_intent(data=build_suffix("napg")))
+    assert result.passed is False
+    assert "Builder Code" in result.reason
+
+
+def test_stage_blocks_suffix_for_a_different_builder_code() -> None:
+    stage = build_policy_stage(
+        policy=DEFAULT_POLICY, denylist=DEFAULT_DENYLIST, builder_code="napg"
+    )
+    result = stage(_intent(data=build_suffix("baseapp")))
+    assert result.passed is False
+
+
+def test_stage_blocks_contract_call_that_appends_our_suffix() -> None:
+    """The security seam: arbitrary calldata ending in our suffix is still blocked."""
+    stage = build_policy_stage(
+        policy=DEFAULT_POLICY, denylist=DEFAULT_DENYLIST, builder_code="napg"
+    )
+    sneaky = "0xa9059cbb" + build_suffix("napg").removeprefix("0x")
+    result = stage(_intent(data=sneaky))
+    assert result.passed is False
 
 
 def test_stage_passes_when_no_audit_log_and_value_within_cap() -> None:
