@@ -196,4 +196,59 @@ Tracked as locked kickoff decisions in
   pipeline, including the deferred Tenderly state-diff work this note would
   activate for swaps.
 - [PLAN.md](../../PLAN.md) — Phase 4 substeps (Builder Code, x402, Guardian Mode).
-</content>
+
+## 9. Review-driven hardening (2026-06-28)
+
+An external adversarial review of the roadmap surfaced three MEV-gate gaps worth
+folding into the Group E design before it is built. None change the section-4
+architecture; they tighten its edges.
+
+### 9.1 Simulation freshness (the quote -> sim -> inclusion window)
+
+Section 4.2 asserts the *simulated* received amount meets `min_out_wei`, but a
+simulation that passed at T0 can still under-fill if inclusion happens at
+T0 + 12s after the market moves. The state-diff check is necessary but not
+sufficient on its own.
+
+Mitigation: a `max_simulation_age_seconds` policy field (signed in
+`config/policy.toml`, default **5 s**). The Stage 3 result carries the timestamp
+it was produced; if more than that elapses before signing, the pipeline rejects
+fail-closed and the action must re-simulate rather than sign a stale result. The
+on-chain `min_out_wei` is the backstop regardless — a stale sim that turns into a
+bad fill still reverts at the contract — but freshness keeps the agent from
+*choosing* to submit into a known-moved market.
+
+### 9.2 Submission-endpoint failure is fail-closed, not failover
+
+Section 4.3 routes swaps through a protected endpoint. The endpoint-down
+behaviour is now explicit: **if the configured submission endpoint is
+unreachable, halt signing and alert — never silently fall back to an unprotected
+path.** There is no second protected RPC for Base today (Flashbots does not serve
+Base; see kickoff decision 1), so "failover" is halt-and-alert via the
+`resilience.py` circuit-breaker, not a second provider. Add a primary/secondary
+pair if and when a Base-native protected submission market exists.
+
+### 9.3 Slippage is not sandwich protection — record execution quality
+
+A slippage cap bounds *how much* you lose; it does not prevent being sandwiched
+*within* tolerance (expected 1000 USDC, attacker front-runs, you receive 995 at
+0.5% slippage, the tx succeeds — you were still MEV'd). On Base the public-mempool
+sandwich surface is limited (section 1), but adverse execution is still possible.
+
+Mitigation: the section-4.4 post-trade probe records not only realized-vs-quoted
+slippage but `expected_mid_price`, `execution_price`, `realized_spread_bps`, and
+`price_impact_bps`, so adverse execution *inside* tolerance is captured in the
+audit log and dashboard even though it does not revert. Detection, not
+prevention — but it turns invisible MEV loss into a first-class, reviewable
+Service Level signal, which is the whole NAPG premise.
+
+### 9.4 Correlated dependency failure (cross-cutting, not Group-E-only)
+
+The review's sharpest point applies beyond swaps: NAPG's *purpose* is to migrate
+funds to safety when infrastructure is failing, but Stage 3 fails closed on a
+Tenderly outage — so a correlated outage (market stress + Tenderly down) could
+block the very safety migration the agent exists to perform. This is tracked as
+an operational decision in
+[docs/runbooks/infra-outage.md](../runbooks/infra-outage.md), not a Group-E code
+change, because it needs a deliberate policy choice (fallback simulator vs.
+controlled override for the native-transfer migration) before mainnet.
