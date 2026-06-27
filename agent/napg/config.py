@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     safe_contract_address: str | None = Field(default=None, alias="NAPG_SAFE_CONTRACT_ADDRESS")
     audit_db_path: str = Field(default="./audit.db", alias="NAPG_AUDIT_DB")
     audit_hmac_key: str | None = Field(default=None, alias="NAPG_AUDIT_HMAC_KEY")
+    # Dedicated Assurance Report signing key (Ed25519 32-byte seed, hex). Kept
+    # distinct from the operational MPC wallet key; never written to the audit
+    # DB. Generate with `napg report generate-key`.
+    reporting_signing_key: str | None = Field(default=None, alias="NAPG_REPORTING_SIGNING_KEY")
     tenderly_account_slug: str | None = Field(default=None, alias="TENDERLY_ACCOUNT_SLUG")
     tenderly_project_slug: str | None = Field(default=None, alias="TENDERLY_PROJECT_SLUG")
     tenderly_access_key: str | None = Field(default=None, alias="TENDERLY_ACCESS_KEY")
