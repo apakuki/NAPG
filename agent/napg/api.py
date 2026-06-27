@@ -30,6 +30,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from napg.audit import AuditLog
 from napg.config import Settings
+from napg.guardian import GuardianStatus, entitlement_status
 from napg.monitor.aerodrome import AerodromeMonitor, LiquidityProbe
 from napg.monitor.morpho import MorphoMonitor, MorphoPoll
 from napg.monitor.resilience import CircuitBreaker, FailoverRpcHeartbeat, RateLimiter
@@ -258,6 +259,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         content, status = await asyncio.to_thread(settle)
         return JSONResponse(status_code=status, content=content)
+
+    @app.get("/api/guardian/status", response_model=GuardianStatus)
+    async def guardian_status(fid: int = Query(ge=0)) -> GuardianStatus:
+        """Guardian Mode entitlement for `fid`, decided from the audit log only.
+
+        No request input other than the fid is consulted — a forged entitlement
+        claim (header or body) cannot grant access; the audit log is the sole
+        source of truth.
+        """
+        if not resolved.audit_hmac_key:
+            raise HTTPException(status_code=503, detail="audit log not configured")
+
+        def read_status() -> GuardianStatus:
+            with AuditLog(resolved.audit_db_path, resolved.audit_hmac_key) as log:
+                return entitlement_status(log, fid, now=time.time())
+
+        return await asyncio.to_thread(read_status)
 
     return app
 

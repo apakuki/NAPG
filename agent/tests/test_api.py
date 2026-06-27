@@ -439,3 +439,46 @@ def test_x402_idempotent_retry_returns_original_report(tmp_path):
     assert first.status_code == 200
     assert second.status_code == 200
     assert second.json() == first.json()
+
+
+# --- Guardian Mode entitlement endpoint -------------------------------------
+
+from napg.audit import AuditLog  # noqa: E402
+from napg.guardian import grant_entitlement  # noqa: E402
+
+
+def test_guardian_status_503_when_hmac_unset(tmp_path):
+    settings = _settings(NAPG_AUDIT_DB=str(tmp_path / "audit.db"))
+    client = TestClient(create_app(settings=settings))
+    assert client.get("/api/guardian/status?fid=123").status_code == 503
+
+
+def test_guardian_status_not_entitled_without_record(tmp_path):
+    settings = _settings(NAPG_AUDIT_DB=str(tmp_path / "audit.db"), NAPG_AUDIT_HMAC_KEY="test-key")
+    client = TestClient(create_app(settings=settings))
+    body = client.get("/api/guardian/status?fid=123").json()
+    assert body == {"fid": 123, "entitled": False, "plan": None, "expires_at": None}
+
+
+def test_guardian_status_ignores_forged_client_claim(tmp_path):
+    settings = _settings(NAPG_AUDIT_DB=str(tmp_path / "audit.db"), NAPG_AUDIT_HMAC_KEY="test-key")
+    client = TestClient(create_app(settings=settings))
+    # A forged entitlement claim in headers must not grant access.
+    response = client.get(
+        "/api/guardian/status?fid=123",
+        headers={"x-entitled": "true", "x-guardian-plan": "guardian-monthly"},
+    )
+    assert response.json()["entitled"] is False
+
+
+def test_guardian_status_entitled_after_grant(tmp_path):
+    db = tmp_path / "audit.db"
+    settings = _settings(NAPG_AUDIT_DB=str(db), NAPG_AUDIT_HMAC_KEY="test-key")
+    import time as _time
+
+    with AuditLog(str(db), "test-key") as log:
+        grant_entitlement(log, fid=123, granted_at=_time.time(), duration_seconds=30 * 86_400)
+    client = TestClient(create_app(settings=settings))
+    body = client.get("/api/guardian/status?fid=123").json()
+    assert body["entitled"] is True
+    assert body["plan"] == "guardian-monthly"
