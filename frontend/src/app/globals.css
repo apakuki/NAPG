@@ -66,3 +66,13 @@ body {
   align-items: center;
   justify-content: center;
 }
+
+/*
+ * Clears the iOS home indicator on the sticky bottom nav. Lives here rather
+ * than as an inline `style` attribute so the strict CSP (`style-src 'self'
+ * 'nonce-...'`, no `unsafe-inline`) does not block it -- nonces do not apply
+ * to inline style attributes, only to <style> blocks.
+ */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}

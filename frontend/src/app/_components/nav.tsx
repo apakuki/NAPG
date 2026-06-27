@@ -18,10 +18,10 @@ export function Nav() {
   const pathname = usePathname();
   return (
     <nav
-      className="sticky bottom-0 z-10 border-t border-zinc-200 bg-white/95 backdrop-blur dark:border-zinc-800 dark:bg-black/95"
-      // env(safe-area-inset-bottom) clears the iOS home indicator without
-      // adding padding on devices that don't need it.
-      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+      // safe-bottom (globals.css) clears the iOS home indicator via
+      // env(safe-area-inset-bottom); kept in CSS, not an inline style
+      // attribute, so the strict CSP does not block it.
+      className="safe-bottom sticky bottom-0 z-10 border-t border-zinc-200 bg-white/95 backdrop-blur dark:border-zinc-800 dark:bg-black/95"
       aria-label="Primary"
     >
       <ul className="mx-auto flex max-w-5xl items-center justify-around px-2 py-1 text-sm font-medium">
