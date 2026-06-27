@@ -21,10 +21,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel, ConfigDict
+from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict, Field
 
 from napg.audit import AuditLog
 from napg.config import Settings
@@ -32,6 +34,16 @@ from napg.monitor.aerodrome import AerodromeMonitor, LiquidityProbe
 from napg.monitor.morpho import MorphoMonitor, MorphoPoll
 from napg.monitor.resilience import CircuitBreaker, FailoverRpcHeartbeat, RateLimiter
 from napg.monitor.rpc import HeartbeatResult, RpcHeartbeat
+from napg.reporting import ReportSigner, ReportWindow
+from napg.x402 import (
+    X402Error,
+    build_payment_requirements,
+    decode_payment_header,
+    payment_required_body,
+    settle_and_issue,
+    usdc_atomic,
+    verify_payment,
+)
 
 # Per-upstream gates. Aerodrome and Morpho share the same Phase 1 defaults as
 # `FailoverRpcHeartbeat`: 5 req/s sustained / burst of 5, breaker opens after 3
@@ -83,6 +95,15 @@ class BreachFeedResponse(BaseModel):
 
     items: list[BreachFeedItem]
     total_returned: int
+
+
+class X402ReportRequest(BaseModel):
+    """Body for the paid Assurance Report endpoint."""
+
+    model_config = ConfigDict(frozen=True)
+
+    protocol: str = Field(min_length=1, max_length=64)
+    window_seconds: int = Field(default=86_400, ge=1, le=2_592_000)
 
 
 def _heartbeat(settings: Settings) -> HeartbeatResult | CardError:
@@ -180,6 +201,63 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         items = await asyncio.to_thread(read_breaches)
         return BreachFeedResponse(items=items, total_returned=len(items))
+
+    @app.post("/api/x402/assurance-report")
+    async def x402_assurance_report(
+        body: X402ReportRequest,
+        x_payment: str | None = Header(default=None, alias="X-PAYMENT"),
+        idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    ) -> JSONResponse:
+        """Paid Assurance Report (x402 exact scheme over USDC).
+
+        No payment -> 402 with requirements. Valid payment -> 200 with the
+        signed report. Reused nonce -> 409 (or the original report on an
+        idempotent retry carrying the same Idempotency-Key).
+        """
+        if not resolved.audit_hmac_key:
+            raise HTTPException(status_code=503, detail="audit log not configured")
+        if not resolved.reporting_signing_key:
+            raise HTTPException(status_code=503, detail="reporting key not configured")
+        if not resolved.x402_pay_to:
+            raise HTTPException(status_code=503, detail="x402 payTo address not configured")
+
+        requirements = build_payment_requirements(
+            network=resolved.network,
+            pay_to=resolved.x402_pay_to,
+            price_atomic=usdc_atomic(resolved.x402_report_price_usdc),
+            resource="/api/x402/assurance-report",
+            description=f"NAPG Assurance Report for {body.protocol}",
+        )
+
+        if not x_payment:
+            return JSONResponse(status_code=402, content=payment_required_body(requirements))
+
+        def settle() -> tuple[dict[str, Any], int]:
+            now = int(time.time())
+            try:
+                authorization, signature = decode_payment_header(x_payment)
+                verified = verify_payment(authorization, signature, requirements, now=now)
+            except X402Error as exc:
+                return payment_required_body(requirements, error=exc.reason), 402
+            window = ReportWindow(start_ts=now - body.window_seconds, end_ts=now)
+            signer = ReportSigner.from_settings(resolved)
+            with AuditLog(resolved.audit_db_path, resolved.audit_hmac_key) as log:
+                try:
+                    report, _ = settle_and_issue(
+                        log,
+                        signer,
+                        verified,
+                        protocol=body.protocol,
+                        window=window,
+                        generated_at=float(now),
+                        idempotency_key=idempotency_key,
+                    )
+                except X402Error as exc:
+                    return {"error": exc.reason}, 409
+            return report.model_dump(mode="json"), 200
+
+        content, status = await asyncio.to_thread(settle)
+        return JSONResponse(status_code=status, content=content)
 
     return app
 

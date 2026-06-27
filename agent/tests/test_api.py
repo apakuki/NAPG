@@ -309,3 +309,133 @@ def test_breaches_endpoint_clamps_limit(tmp_path):
     assert response.status_code == 422
     response = client.get("/api/audit/breaches?limit=0")
     assert response.status_code == 422
+
+
+# --- x402 paid Assurance Report endpoint ------------------------------------
+
+from eth_account import Account  # noqa: E402
+
+from napg.x402 import build_payment_requirements, usdc_atomic  # noqa: E402
+from tests.test_x402 import make_payment_header  # noqa: E402
+
+_REPORTING_SEED = "cd" * 32
+_X402_PAY_TO = "0x000000000000000000000000000000000000d00d"
+_X402_NONCE = "0x" + "33" * 32
+
+
+def _x402_settings(tmp_path, **extra):
+    return _settings(
+        NAPG_NETWORK="base-sepolia",
+        NAPG_AUDIT_DB=str(tmp_path / "audit.db"),
+        NAPG_AUDIT_HMAC_KEY="test-key",
+        NAPG_REPORTING_SIGNING_KEY=_REPORTING_SEED,
+        NAPG_X402_PAY_TO=_X402_PAY_TO,
+        **extra,
+    )
+
+
+def _signed_header(account, *, nonce=_X402_NONCE, value=100_000):
+    requirements = build_payment_requirements(
+        network="base-sepolia",
+        pay_to=_X402_PAY_TO,
+        price_atomic=usdc_atomic("0.10"),
+        resource="/api/x402/assurance-report",
+        description="test",
+    )
+    return make_payment_header(account, requirements, value=value, nonce=nonce)
+
+
+def test_x402_returns_402_without_payment(tmp_path):
+    client = TestClient(create_app(settings=_x402_settings(tmp_path)))
+    response = client.post("/api/x402/assurance-report", json={"protocol": "aerodrome"})
+    assert response.status_code == 402
+    body = response.json()
+    assert body["x402Version"] == 1
+    assert body["accepts"][0]["payTo"] == _X402_PAY_TO
+
+
+def test_x402_503_when_reporting_key_unset(tmp_path):
+    settings = _settings(
+        NAPG_AUDIT_DB=str(tmp_path / "audit.db"),
+        NAPG_AUDIT_HMAC_KEY="test-key",
+        NAPG_X402_PAY_TO=_X402_PAY_TO,
+    )
+    client = TestClient(create_app(settings=settings))
+    response = client.post("/api/x402/assurance-report", json={"protocol": "aerodrome"})
+    assert response.status_code == 503
+    assert "reporting key" in response.json()["detail"]
+
+
+def test_x402_503_when_pay_to_unset(tmp_path):
+    settings = _settings(
+        NAPG_AUDIT_DB=str(tmp_path / "audit.db"),
+        NAPG_AUDIT_HMAC_KEY="test-key",
+        NAPG_REPORTING_SIGNING_KEY=_REPORTING_SEED,
+    )
+    client = TestClient(create_app(settings=settings))
+    response = client.post("/api/x402/assurance-report", json={"protocol": "aerodrome"})
+    assert response.status_code == 503
+    assert "payTo" in response.json()["detail"]
+
+
+def test_x402_paid_returns_signed_report(tmp_path):
+    client = TestClient(create_app(settings=_x402_settings(tmp_path)))
+    account = Account.create()
+    response = client.post(
+        "/api/x402/assurance-report",
+        json={"protocol": "aerodrome"},
+        headers={"X-PAYMENT": _signed_header(account)},
+    )
+    assert response.status_code == 200
+    report = response.json()
+    assert report["protocol"] == "aerodrome"
+    assert report["signature"]
+    assert report["kid"]
+
+
+def test_x402_rejects_underpayment_with_402(tmp_path):
+    client = TestClient(create_app(settings=_x402_settings(tmp_path)))
+    account = Account.create()
+    response = client.post(
+        "/api/x402/assurance-report",
+        json={"protocol": "aerodrome"},
+        headers={"X-PAYMENT": _signed_header(account, value=1)},
+    )
+    assert response.status_code == 402
+    assert "below the required price" in response.json()["error"]
+
+
+def test_x402_replayed_nonce_is_rejected_409(tmp_path):
+    client = TestClient(create_app(settings=_x402_settings(tmp_path)))
+    account = Account.create()
+    header = _signed_header(account)
+    first = client.post(
+        "/api/x402/assurance-report",
+        json={"protocol": "aerodrome"},
+        headers={"X-PAYMENT": header},
+    )
+    assert first.status_code == 200
+    # Same nonce, no idempotency key -> replay.
+    second = client.post(
+        "/api/x402/assurance-report",
+        json={"protocol": "aerodrome"},
+        headers={"X-PAYMENT": header},
+    )
+    assert second.status_code == 409
+    assert "already used" in second.json()["error"]
+
+
+def test_x402_idempotent_retry_returns_original_report(tmp_path):
+    client = TestClient(create_app(settings=_x402_settings(tmp_path)))
+    account = Account.create()
+    header = _signed_header(account)
+    headers = {"X-PAYMENT": header, "Idempotency-Key": "retry-1"}
+    first = client.post(
+        "/api/x402/assurance-report", json={"protocol": "aerodrome"}, headers=headers
+    )
+    second = client.post(
+        "/api/x402/assurance-report", json={"protocol": "aerodrome"}, headers=headers
+    )
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json() == first.json()
