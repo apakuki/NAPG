@@ -567,6 +567,9 @@ from `proxy.ts`. Add a Playwright spec under `e2e/` for the navigation path.
   record of what is built vs deferred per phase.
 - [docs/threat-models/](threat-models/) — per-phase threat models, including the
   accepted risks (e.g. Tenderly state-diff deferral).
+- [docs/design/phase-4-mev.md](design/phase-4-mev.md) — MEV exposure of the agent's
+  own transactions and the protections to build into the Phase 4 token/swap
+  surfaces (slippage floor, execution-quality simulation, protected submission).
 - [docs/manual-tests/](manual-tests/) — per-phase manual test scripts that
   exercise the live system.
 - [docs/deploy-staging.md](deploy-staging.md) — the Fly.io two-app deploy (private
