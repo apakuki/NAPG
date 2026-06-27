@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 
 type StartResponse = { channelToken: string; url: string };
 type PollResponse =
@@ -80,18 +81,24 @@ export function SignIn() {
     return (
       <div className="flex flex-col gap-3">
         <p className="text-sm text-zinc-700 dark:text-zinc-300">
-          Open this link in the Farcaster app to approve sign-in. We will pick
-          it up automatically.
+          Scan this code with your phone&apos;s camera to approve sign-in in the
+          Farcaster app. Keep this tab open -- we pick it up automatically.
         </p>
+        <div className="self-center rounded-lg bg-white p-3">
+          <QRCodeSVG value={state.channel.url} size={200} marginSize={0} />
+        </div>
         <a
           href={state.channel.url}
+          target="_blank"
+          rel="noopener noreferrer"
           className="tap break-all rounded-lg bg-blue-600 px-4 text-center text-sm font-medium text-white hover:bg-blue-700"
         >
           Open in Farcaster
         </a>
         <p className="text-xs text-zinc-500 dark:text-zinc-500">
-          On desktop, copy the link to your phone or paste it into a QR
-          generator. The channel expires after five minutes.
+          On this device, the button opens the Farcaster app in a new tab so
+          this one keeps listening. On desktop, scan the code above with your
+          phone. The channel expires after five minutes.
         </p>
         <button
           type="button"
