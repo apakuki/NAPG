@@ -37,6 +37,7 @@ from napg.agentshield.stages.policy import build_policy_stage
 from napg.agentshield.stages.tenderly import build_tenderly_stage
 from napg.audit import AuditLog
 from napg.config import Settings
+from napg.override import MigrationOverride, build_override_stage
 
 _NETWORK_TO_CHAIN_ID = {"base-sepolia": 84532, "base-mainnet": 8453}
 
@@ -96,4 +97,51 @@ def build_production_validator(
     return _validate
 
 
-__all__ = ["build_production_validator"]
+def build_migration_override_validator(
+    settings: Settings,
+    *,
+    grant: MigrationOverride,
+    now: float,
+    audit_log: AuditLog | None = None,
+) -> Callable[[TxIntent], ValidationResult]:
+    """Like `build_production_validator` but the Tenderly stage is replaced by the
+    human-armed migration override (hardening decision 4).
+
+    Used only on the degraded path when Tenderly is unavailable. **Every other
+    stage is identical** — kill-switch, Intent Judge, Policy caps + denylist, and
+    Honeypot all still run; only the unavailable simulation is bypassed, and only
+    for an override-valid native migration to the armed safe address. Does not
+    require Tenderly credentials (that is the whole point), but still requires the
+    Anthropic key for the Intent Judge.
+    """
+    if not settings.anthropic_api_key:
+        raise RuntimeError("ANTHROPIC_API_KEY required for AgentShield Intent Judge")
+
+    public_key_path = default_public_key_path()
+    policy_config = load_policy(default_policy_path(), public_key_path)
+    denylist = load_denylist(default_denylist_path(), public_key_path)
+
+    intent_judge = build_intent_judge_stage(api_key=settings.anthropic_api_key)
+    policy_stage = build_policy_stage(
+        policy=policy_config,
+        denylist=denylist,
+        audit_log=audit_log,
+        builder_code=settings.builder_code,
+    )
+    override_stage = build_override_stage(grant, now=now)
+    honeypot_stage = build_honeypot_stage(builder_code=settings.builder_code)
+
+    def _validate(intent: TxIntent) -> ValidationResult:
+        return validate_or_die(
+            intent,
+            audit_log=audit_log,
+            intent_judge=intent_judge,
+            policy=policy_stage,
+            tenderly=override_stage,
+            honeypot=honeypot_stage,
+        )
+
+    return _validate
+
+
+__all__ = ["build_migration_override_validator", "build_production_validator"]

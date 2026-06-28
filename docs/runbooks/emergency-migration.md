@@ -79,8 +79,19 @@ post-incident return of funds as a separate, unhurried, fully-validated action.
 - For Guardian Mode subscribers whose positions are affected: a notification once
   the migration is confirmed.
 
-## Open dependency
+## Path B is implemented
 
-Implementation of Path B (the override + `migration_override` audit kind +
-human-approval gate) is a near-term Stage 3 / production-validator change, tracked
-in PLAN.md hardening decision 4.
+`napg.override` (+ `build_migration_override_validator`). Operator two-step:
+
+```bash
+# step 1 — arm (manual approval; records migration_override_armed)
+napg override arm --approver <you> --justification "tenderly down during <event>"
+# step 2 — after the two-step wait (migration_override_wait_seconds), execute
+napg override execute --amount-eth <amt> --execute
+```
+
+The override substitutes only the Tenderly stage; Stage 2 caps, denylist,
+Intent Judge, Honeypot, and the kill-switch all still apply, and the validator
+re-checks the two-step wait + TTL at execution. `--execute` is required to move
+funds (omit it for a dry run). The durable Phase 5 replacement is the local
+anvil-fork fallback, after which this override becomes a rarely-used backstop.

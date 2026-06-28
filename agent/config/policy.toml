@@ -42,6 +42,15 @@ max_slippage_bps = 50
 # hardening review (quote -> sim -> inclusion window).
 max_simulation_age_seconds = 5
 
+# Emergency migration override (hardening decision 4 / docs/runbooks/emergency-migration.md).
+# Breaking-glass for the safety migration when Tenderly (Stage 3) is down. These
+# bound its blast radius: a two-step wait between arming and executing, and a TTL
+# after which an armed override expires so an emergency flag never becomes
+# permanent. 60s wait, 30min TTL. Every other gate (caps, denylist, honeypot,
+# kill-switch) still applies; the override only bypasses the unavailable sim.
+migration_override_wait_seconds = 60
+migration_override_ttl_seconds = 1800
+
 # Group E swap token universe. A swap's token_in AND token_out must both be on
 # this list. Empty (the default) blocks every swap, matching the transfer-only
 # launch posture. When enabling swaps, populate with a constrained set for the
