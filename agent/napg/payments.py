@@ -4,6 +4,12 @@ Phase 4 Group B. Implements the x402 "exact" scheme over USDC so another agent
 can pay for an Assurance Report: an unpaid request gets HTTP 402 with payment
 requirements; a request carrying a valid signed payment gets the signed report.
 
+Module is named `payments`, not `x402`: a top-level module named `x402` here
+shadows the third-party `x402` package (which coinbase_agentkit imports via
+`from x402.clients.base import ...`) whenever `napg/` lands on `sys.path[0]`,
+e.g. under the `napg` console-script entry point. `napg.payments` removes the
+collision and leaves room for other payment rails later.
+
 The payment itself is an EIP-3009 `TransferWithAuthorization` over USDC, signed
 by the payer (EIP-712). We verify the signature, the amount, the recipient, and
 the expiry window; we do not move funds on-chain here -- in production the

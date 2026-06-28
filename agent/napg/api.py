@@ -35,8 +35,7 @@ from napg.monitor.aerodrome import AerodromeMonitor, LiquidityProbe
 from napg.monitor.morpho import MorphoMonitor, MorphoPoll
 from napg.monitor.resilience import CircuitBreaker, FailoverRpcHeartbeat, RateLimiter
 from napg.monitor.rpc import HeartbeatResult, RpcHeartbeat
-from napg.reporting import ReportSigner, ReportWindow
-from napg.x402 import (
+from napg.payments import (
     X402Error,
     build_payment_requirements,
     decode_payment_header,
@@ -45,6 +44,7 @@ from napg.x402 import (
     usdc_atomic,
     verify_payment,
 )
+from napg.reporting import ReportSigner, ReportWindow
 
 # Per-upstream gates. Aerodrome and Morpho share the same Phase 1 defaults as
 # `FailoverRpcHeartbeat`: 5 req/s sustained / burst of 5, breaker opens after 3

@@ -315,8 +315,8 @@ def test_breaches_endpoint_clamps_limit(tmp_path):
 
 from eth_account import Account  # noqa: E402
 
-from napg.x402 import build_payment_requirements, usdc_atomic  # noqa: E402
-from tests.test_x402 import make_payment_header  # noqa: E402
+from napg.payments import build_payment_requirements, usdc_atomic  # noqa: E402
+from tests.test_payments import make_payment_header  # noqa: E402
 
 _REPORTING_SEED = "cd" * 32
 _X402_PAY_TO = "0x000000000000000000000000000000000000d00d"
