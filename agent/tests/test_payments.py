@@ -1,4 +1,4 @@
-"""Tests for napg.x402 — payment requirements, EIP-712 verification, settlement."""
+"""Tests for napg.payments — x402 payment requirements, EIP-712 verification, settlement."""
 
 from __future__ import annotations
 
@@ -11,9 +11,7 @@ from eth_account.messages import encode_typed_data
 from eth_account.signers.local import LocalAccount
 
 from napg.audit import AuditLog
-from napg.policy.breaches import Breach
-from napg.reporting import AssuranceReport, ReportSigner, ReportWindow, verify_report
-from napg.x402 import (
+from napg.payments import (
     Authorization,
     PaymentRequirements,
     X402Error,
@@ -28,6 +26,8 @@ from napg.x402 import (
     usdc_for_network,
     verify_payment,
 )
+from napg.policy.breaches import Breach
+from napg.reporting import AssuranceReport, ReportSigner, ReportWindow, verify_report
 
 _HMAC_KEY = "test-audit-hmac-key"
 _PAY_TO = "0x000000000000000000000000000000000000d00d"
