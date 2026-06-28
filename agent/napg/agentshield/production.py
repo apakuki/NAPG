@@ -69,7 +69,9 @@ def build_production_validator(
     policy_config = load_policy(default_policy_path(), public_key_path)
     denylist = load_denylist(default_denylist_path(), public_key_path)
 
-    intent_judge = build_intent_judge_stage(api_key=settings.anthropic_api_key)
+    intent_judge = build_intent_judge_stage(
+        api_key=settings.anthropic_api_key, model=settings.intent_judge_model
+    )
     policy_stage = build_policy_stage(
         policy=policy_config,
         denylist=denylist,
@@ -121,7 +123,9 @@ def build_migration_override_validator(
     policy_config = load_policy(default_policy_path(), public_key_path)
     denylist = load_denylist(default_denylist_path(), public_key_path)
 
-    intent_judge = build_intent_judge_stage(api_key=settings.anthropic_api_key)
+    intent_judge = build_intent_judge_stage(
+        api_key=settings.anthropic_api_key, model=settings.intent_judge_model
+    )
     policy_stage = build_policy_stage(
         policy=policy_config,
         denylist=denylist,
