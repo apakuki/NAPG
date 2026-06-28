@@ -40,3 +40,11 @@ market_utilization_bps_max = 9500
 # One hour is a conservative ceiling that allows quiet markets to look healthy
 # while still surfacing markets that have genuinely stalled.
 market_staleness_seconds_max = 3600
+
+# --- Swap execution quality (Group E, post-trade) ---
+# Maximum acceptable realized slippage (quoted output vs amount actually
+# received), in basis points. 100 bps = 1%. Looser than the 50 bps pre-trade
+# Stage 2 cap: this is a monitoring alert on adverse execution that still landed
+# (sandwiching within tolerance, optimistic quotes, degrading execution), not a
+# signing gate.
+realized_slippage_bps_max = 100

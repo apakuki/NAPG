@@ -41,3 +41,10 @@ max_slippage_bps = 50
 # signer must re-simulate rather than sign a stale result. 5s per the
 # hardening review (quote -> sim -> inclusion window).
 max_simulation_age_seconds = 5
+
+# Group E swap token universe. A swap's token_in AND token_out must both be on
+# this list. Empty (the default) blocks every swap, matching the transfer-only
+# launch posture. When enabling swaps, populate with a constrained set for the
+# active network -- USDC / USDT / cbBTC / WETH -- and keep fee-on-transfer,
+# rebasing, and exotic tokens off it. Re-sign the file after editing.
+swap_token_allowlist = []

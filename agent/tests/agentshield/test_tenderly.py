@@ -286,3 +286,10 @@ def test_is_simulation_fresh_rejects_stale() -> None:
 
 def test_is_simulation_fresh_fails_closed_without_stamp() -> None:
     assert is_simulation_fresh({}, 5.0, now=1000.0) is False
+
+
+def test_simulation_age_seconds() -> None:
+    from napg.agentshield.stages.tenderly import simulation_age_seconds
+
+    assert simulation_age_seconds({"simulated_at": 1000.0}, now=1003.5) == 3.5
+    assert simulation_age_seconds({}, now=1000.0) is None
