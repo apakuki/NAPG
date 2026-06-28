@@ -354,14 +354,31 @@ def test_default_configs_load_after_signing(tmp_path: Path) -> None:
     assert policy.daily_spend_cap_wei >= policy.max_value_wei_per_tx
     assert policy.max_slippage_bps == 50
     assert policy.max_simulation_age_seconds == 5
+    assert policy.swap_token_allowlist == ()
     assert denylist.contains("0x0000000000000000000000000000000000000000") is True
 
 
 # ---- Stage 2 swap slippage floor (Group E) ----
 
 
+TOKEN_IN = "0x" + "cc" * 20
+TOKEN_OUT = "0x" + "dd" * 20
+# A policy that allows the test swap pair, so token-universe checks pass and we
+# can exercise the gates that come after it.
+SWAP_POLICY = PolicyConfig(
+    max_value_wei_per_tx=1_000_000_000_000_000,
+    daily_spend_cap_wei=5_000_000_000_000_000,
+    swap_token_allowlist=(TOKEN_IN, TOKEN_OUT),
+)
+
+
 def _swap_intent(
-    *, min_out_wei: int | None, quoted_out_wei: int | None, data: str = "0x"
+    *,
+    min_out_wei: int | None,
+    quoted_out_wei: int | None,
+    data: str = "0x",
+    token_in: str | None = TOKEN_IN,
+    token_out: str | None = TOKEN_OUT,
 ) -> TxIntent:
     return TxIntent(
         action="swap",
@@ -371,8 +388,8 @@ def _swap_intent(
         data=data,
         min_out_wei=min_out_wei,
         quoted_out_wei=quoted_out_wei,
-        token_in="0x" + "cc" * 20,
-        token_out="0x" + "dd" * 20,
+        token_in=token_in,
+        token_out=token_out,
     )
 
 
@@ -398,13 +415,37 @@ def test_swap_min_out_above_quote_fails_closed() -> None:
     assert "nonsensical" in result.reason
 
 
-def test_swap_within_slippage_passes_floor_then_blocked_at_calldata() -> None:
-    """A swap that clears the slippage floor (50 bps) still fails on its router
-    calldata — proving the floor passed and the calldata gate is the blocker."""
+def test_swap_blocked_when_no_token_allowlist() -> None:
+    """Default (empty) swap allowlist blocks every swap that clears slippage —
+    the transfer-only launch posture."""
     stage = build_policy_stage(policy=DEFAULT_POLICY, denylist=DEFAULT_DENYLIST)
+    result = stage(_swap_intent(min_out_wei=995_000, quoted_out_wei=1_000_000))
+    assert result.passed is False
+    assert "no swap tokens allowlisted" in result.reason  # slippage passed, tokens blocked
+
+
+def test_swap_blocked_when_token_not_on_allowlist() -> None:
+    stage = build_policy_stage(policy=SWAP_POLICY, denylist=DEFAULT_DENYLIST)
+    other = "0x" + "ee" * 20
+    result = stage(_swap_intent(min_out_wei=995_000, quoted_out_wei=1_000_000, token_out=other))
+    assert result.passed is False
+    assert "not on the swap token allowlist" in result.reason
+
+
+def test_swap_missing_tokens_fails_closed() -> None:
+    stage = build_policy_stage(policy=SWAP_POLICY, denylist=DEFAULT_DENYLIST)
+    result = stage(_swap_intent(min_out_wei=995_000, quoted_out_wei=1_000_000, token_in=None))
+    assert result.passed is False
+    assert "missing token_in/token_out" in result.reason
+
+
+def test_swap_passes_floor_and_tokens_then_blocked_at_calldata() -> None:
+    """A swap clearing both the slippage floor and the token universe still fails
+    on its router calldata — proving both swap gates passed."""
+    stage = build_policy_stage(policy=SWAP_POLICY, denylist=DEFAULT_DENYLIST)
     result = stage(_swap_intent(min_out_wei=995_000, quoted_out_wei=1_000_000, data="0x38ed1739"))
     assert result.passed is False
-    assert "calldata" in result.reason  # not a slippage failure
+    assert "calldata" in result.reason  # not slippage, not token-universe
 
 
 def test_native_transfer_ignores_swap_slippage_fields() -> None:

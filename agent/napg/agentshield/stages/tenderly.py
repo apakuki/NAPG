@@ -199,9 +199,26 @@ def is_simulation_fresh(
     return current - float(simulated_at) <= max_age_seconds
 
 
+def simulation_age_seconds(
+    stage_details: dict[str, Any], *, now: float | None = None
+) -> float | None:
+    """Age of a passing Stage 3 result at `now`, or None if it carries no stamp.
+
+    Telemetry companion to `is_simulation_fresh`: record this on every attempted
+    swap so the freshness window can be tuned against observed p95/p99 age and
+    reject rate.
+    """
+    simulated_at = stage_details.get("simulated_at")
+    if simulated_at is None:
+        return None
+    current = now if now is not None else time.time()
+    return current - float(simulated_at)
+
+
 __all__ = [
     "TenderlyOutcome",
     "TenderlySimulator",
     "build_tenderly_stage",
     "is_simulation_fresh",
+    "simulation_age_seconds",
 ]

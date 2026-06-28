@@ -78,6 +78,9 @@ def build_policy_stage(
             slippage_check = _check_swap_slippage(intent, policy.max_slippage_bps)
             if slippage_check is not None:
                 return slippage_check
+            token_check = _check_swap_tokens(intent, policy.swap_token_allowlist)
+            if token_check is not None:
+                return token_check
 
         if not is_native_or_attribution(intent.data, builder_code):
             # A native transfer, optionally tagged with our exact Builder Code
@@ -140,6 +143,33 @@ def _check_swap_slippage(intent: TxIntent, max_slippage_bps: int) -> StageResult
             passed=False,
             reason=(f"swap implied slippage {implied_bps}bps exceeds cap {max_slippage_bps}bps"),
         )
+    return None
+
+
+def _check_swap_tokens(
+    intent: TxIntent, swap_token_allowlist: tuple[str, ...]
+) -> StageResult | None:
+    """Fail-closed token-universe check for swaps. Both token_in and token_out
+    must be on the allowlist. Empty allowlist blocks every swap (the launch
+    default), keeping the swap surface off until a constrained set is configured.
+    """
+    if not swap_token_allowlist:
+        return StageResult(
+            stage="policy",
+            passed=False,
+            reason="no swap tokens allowlisted (swap surface disabled)",
+        )
+    if intent.token_in is None or intent.token_out is None:
+        return StageResult(
+            stage="policy", passed=False, reason="swap intent missing token_in/token_out"
+        )
+    for label, token in (("token_in", intent.token_in), ("token_out", intent.token_out)):
+        if token.lower() not in swap_token_allowlist:
+            return StageResult(
+                stage="policy",
+                passed=False,
+                reason=f"swap {label} {token.lower()} not on the swap token allowlist",
+            )
     return None
 
 

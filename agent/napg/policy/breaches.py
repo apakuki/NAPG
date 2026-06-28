@@ -46,6 +46,12 @@ class BreachThresholds(BaseModel):
     market_utilization_bps_max: int = Field(default=9500, ge=0, le=10_000)
     market_staleness_seconds_max: int = Field(default=3600, ge=0)
 
+    # Group E post-trade execution quality. Realized slippage (quoted vs actually
+    # received) above this, in basis points, is a breach. Looser than the 50 bps
+    # pre-trade Stage 2 cap: this is a monitoring alert on adverse execution that
+    # still landed (you can be MEV'd inside tolerance), not a signing gate.
+    realized_slippage_bps_max: int = Field(default=100, ge=0, le=10_000)
+
 
 class Breach(BaseModel):
     """One service level breach. Audit-log-ready: every field is JSON-safe."""

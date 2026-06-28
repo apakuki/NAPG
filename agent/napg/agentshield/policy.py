@@ -85,6 +85,12 @@ class PolicyConfig(BaseModel):
     # Empty allowlist = no destination check (any destination allowed). Non-
     # empty list restricts destinations to exactly those addresses.
     destination_allowlist: tuple[str, ...] = ()
+    # Group E swap token universe. A swap's token_in AND token_out must both be
+    # on this list. Empty (the default) = no swap tokens allowed = every swap
+    # fails closed, which matches the transfer-only launch posture. Populate
+    # with a constrained set (USDC / USDT / cbBTC / WETH) when enabling swaps;
+    # keep fee-on-transfer / rebasing / exotic tokens off it.
+    swap_token_allowlist: tuple[str, ...] = ()
 
     @field_validator("token_allowlist", mode="before")
     @classmethod
@@ -95,6 +101,11 @@ class PolicyConfig(BaseModel):
     @classmethod
     def _normalize_destinations(cls, value: object) -> tuple[str, ...]:
         return _normalize_addresses(value, "destination_allowlist")
+
+    @field_validator("swap_token_allowlist", mode="before")
+    @classmethod
+    def _normalize_swap_tokens(cls, value: object) -> tuple[str, ...]:
+        return _normalize_addresses(value, "swap_token_allowlist")
 
 
 class Denylist(BaseModel):
