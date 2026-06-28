@@ -29,7 +29,7 @@ from anthropic import Anthropic
 
 from napg.agentshield.pipeline import StageResult, TxIntent
 
-DEFAULT_JUDGE_MODEL = "claude-opus-4-7"
+DEFAULT_JUDGE_MODEL = "claude-haiku-4-5-20251001"
 DEFAULT_JUDGE_MAX_TOKENS = 512
 
 JUDGE_SYSTEM_PROMPT = """You are AgentShield's Intent Judge — an independent \

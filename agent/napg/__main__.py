@@ -241,7 +241,9 @@ def _cmd_simulate_sequencer_delay(args: argparse.Namespace) -> int:
             },
         )
         wallet = build_agent_wallet(settings) if args.execute else _DryRunWallet(settings)
-        reasoner = Reasoner(api_key=settings.anthropic_api_key, audit_log=log)
+        reasoner = Reasoner(
+            api_key=settings.anthropic_api_key, model=settings.reasoner_model, audit_log=log
+        )
         validator = build_production_validator(settings, audit_log=log) if args.execute else None
         report = run_cycle(
             reasoner=reasoner,

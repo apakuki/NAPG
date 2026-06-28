@@ -34,6 +34,14 @@ class Settings(BaseSettings):
     base_rpc_url_fallback: str | None = Field(default=None, alias="BASE_RPC_URL_FALLBACK")
     zerox_api_key: str | None = Field(default=None, alias="ZEROX_API_KEY")
     anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
+    # Model split for failure independence (hardening decision 6): the planner
+    # (Reasoner) and the Stage 1 Intent Judge run on *different* Claude models so
+    # they do not share a single failure mode. Stage 2 (deterministic) remains the
+    # real backstop regardless. Both stay within the locked Anthropic-only stack.
+    reasoner_model: str = Field(default="claude-opus-4-8", alias="NAPG_REASONER_MODEL")
+    intent_judge_model: str = Field(
+        default="claude-haiku-4-5-20251001", alias="NAPG_INTENT_JUDGE_MODEL"
+    )
     cdp_api_key_name: str | None = Field(default=None, alias="CDP_API_KEY_NAME")
     cdp_api_key_private_key: str | None = Field(default=None, alias="CDP_API_KEY_PRIVATE_KEY")
     cdp_wallet_secret: str | None = Field(default=None, alias="CDP_WALLET_SECRET")

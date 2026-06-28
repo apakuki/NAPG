@@ -91,3 +91,19 @@ def test_reporting_signing_key_defaults_to_none():
 def test_builder_code_loads_from_env_and_defaults_to_none():
     assert _settings().builder_code is None
     assert _settings(NAPG_BUILDER_CODE="napg").builder_code == "napg"
+
+
+def test_reasoner_and_judge_models_are_different_by_default():
+    """Failure independence (hardening decision 6): planner and Intent Judge must
+    default to different Claude models, both within the Anthropic stack."""
+    s = _settings()
+    assert s.reasoner_model == "claude-opus-4-8"
+    assert s.intent_judge_model == "claude-haiku-4-5-20251001"
+    assert s.reasoner_model != s.intent_judge_model
+
+
+def test_models_override_from_env():
+    s = _settings(
+        NAPG_REASONER_MODEL="claude-opus-4-8", NAPG_INTENT_JUDGE_MODEL="claude-sonnet-4-6"
+    )
+    assert s.intent_judge_model == "claude-sonnet-4-6"

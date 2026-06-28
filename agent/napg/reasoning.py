@@ -31,7 +31,7 @@ from napg.monitor.morpho import MorphoPoll
 from napg.monitor.rpc import HeartbeatResult
 from napg.policy.breaches import Breach
 
-DEFAULT_MODEL = "claude-opus-4-7"
+DEFAULT_MODEL = "claude-opus-4-8"
 DEFAULT_MAX_TOKENS = 1024
 
 Intent = Literal["hold", "migrate_to_safe", "pause_for_investigation"]
