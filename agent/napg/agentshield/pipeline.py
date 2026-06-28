@@ -48,6 +48,19 @@ class TxIntent(BaseModel):
     data: str = Field(default="0x", description="calldata hex; '0x' for native transfer")
     rationale: str = Field(default="", description="reasoner-stated rationale for this tx")
     supporting_breaches: tuple[str, ...] = ()
+    # Group E swap economics. Present only on swap intents (action == "swap");
+    # None for native transfers. AgentShield's Stage 2 slippage floor requires
+    # min_out_wei + quoted_out_wei on any swap and fails closed without them.
+    min_out_wei: int | None = Field(default=None, ge=0)
+    quoted_out_wei: int | None = Field(default=None, ge=0)
+    token_in: str | None = None
+    token_out: str | None = None
+
+    @property
+    def is_swap(self) -> bool:
+        """A swap intent declares `action == "swap"`. The future swap action sets
+        this explicitly; native transfers (migrate_to_safe) never do."""
+        return self.action == "swap"
 
 
 class StageResult(BaseModel):

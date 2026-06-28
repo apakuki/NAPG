@@ -28,3 +28,16 @@ token_allowlist = []
 # check (the denylist still applies). Populate with exactly the safe
 # contract addresses you trust if you want to tighten beyond denylist-only.
 destination_allowlist = []
+
+# Group E MEV gate. Maximum tolerated slippage on a swap intent, in basis
+# points. A swap whose min_out implies more than this off the quote fails
+# Stage 2 closed. 50 bps = 0.5% (kickoff decision 3); ~10x the observed
+# Aerodrome USDC/USDT spread, tight enough to bound loss without reverting
+# legit stable rotations. Native transfers ignore this.
+max_slippage_bps = 50
+
+# Maximum age (seconds) of a Stage 3 Tenderly simulation at signing time.
+# Beyond this the market may have moved between sim and inclusion, so the
+# signer must re-simulate rather than sign a stale result. 5s per the
+# hardening review (quote -> sim -> inclusion window).
+max_simulation_age_seconds = 5

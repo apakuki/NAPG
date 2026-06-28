@@ -352,4 +352,68 @@ def test_default_configs_load_after_signing(tmp_path: Path) -> None:
 
     assert policy.max_value_wei_per_tx > 0
     assert policy.daily_spend_cap_wei >= policy.max_value_wei_per_tx
+    assert policy.max_slippage_bps == 50
+    assert policy.max_simulation_age_seconds == 5
     assert denylist.contains("0x0000000000000000000000000000000000000000") is True
+
+
+# ---- Stage 2 swap slippage floor (Group E) ----
+
+
+def _swap_intent(
+    *, min_out_wei: int | None, quoted_out_wei: int | None, data: str = "0x"
+) -> TxIntent:
+    return TxIntent(
+        action="swap",
+        from_address=ADDR_AGENT,
+        to_address=ADDR_SAFE,
+        value_wei=0,
+        data=data,
+        min_out_wei=min_out_wei,
+        quoted_out_wei=quoted_out_wei,
+        token_in="0x" + "cc" * 20,
+        token_out="0x" + "dd" * 20,
+    )
+
+
+def test_swap_without_min_out_fails_closed() -> None:
+    stage = build_policy_stage(policy=DEFAULT_POLICY, denylist=DEFAULT_DENYLIST)
+    result = stage(_swap_intent(min_out_wei=None, quoted_out_wei=1_000_000))
+    assert result.passed is False
+    assert "slippage floor required" in result.reason
+
+
+def test_swap_over_slippage_cap_fails_closed() -> None:
+    stage = build_policy_stage(policy=DEFAULT_POLICY, denylist=DEFAULT_DENYLIST)
+    # 60 bps implied vs 50 bps cap.
+    result = stage(_swap_intent(min_out_wei=994_000, quoted_out_wei=1_000_000))
+    assert result.passed is False
+    assert "exceeds cap" in result.reason
+
+
+def test_swap_min_out_above_quote_fails_closed() -> None:
+    stage = build_policy_stage(policy=DEFAULT_POLICY, denylist=DEFAULT_DENYLIST)
+    result = stage(_swap_intent(min_out_wei=1_000_001, quoted_out_wei=1_000_000))
+    assert result.passed is False
+    assert "nonsensical" in result.reason
+
+
+def test_swap_within_slippage_passes_floor_then_blocked_at_calldata() -> None:
+    """A swap that clears the slippage floor (50 bps) still fails on its router
+    calldata — proving the floor passed and the calldata gate is the blocker."""
+    stage = build_policy_stage(policy=DEFAULT_POLICY, denylist=DEFAULT_DENYLIST)
+    result = stage(_swap_intent(min_out_wei=995_000, quoted_out_wei=1_000_000, data="0x38ed1739"))
+    assert result.passed is False
+    assert "calldata" in result.reason  # not a slippage failure
+
+
+def test_native_transfer_ignores_swap_slippage_fields() -> None:
+    stage = build_policy_stage(policy=DEFAULT_POLICY, denylist=DEFAULT_DENYLIST)
+    # migrate_to_safe intent with no swap fields passes (slippage check skipped).
+    result = stage(_intent(value_wei=100))
+    assert result.passed is True
+
+
+def test_is_swap_flag() -> None:
+    assert _swap_intent(min_out_wei=1, quoted_out_wei=1).is_swap is True
+    assert _intent().is_swap is False

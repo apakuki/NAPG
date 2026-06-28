@@ -25,6 +25,7 @@ the key.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -173,14 +174,34 @@ def build_tenderly_stage(
             stage="tenderly",
             passed=True,
             reason="tenderly simulation passed",
-            details=outcome.model_dump(),
+            # `simulated_at` lets the signer enforce the simulation-freshness
+            # gate (is_simulation_fresh) before committing — the market can move
+            # between sim and inclusion.
+            details={**outcome.model_dump(), "simulated_at": time.time()},
         )
 
     return _stage
+
+
+def is_simulation_fresh(
+    stage_details: dict[str, Any], max_age_seconds: float, *, now: float | None = None
+) -> bool:
+    """True if a passing Stage 3 result is recent enough to sign against.
+
+    Fail-closed: a result without a `simulated_at` stamp is treated as not fresh.
+    The signer calls this with `policy.max_simulation_age_seconds` immediately
+    before requesting a signature; a stale result must be re-simulated, not signed.
+    """
+    simulated_at = stage_details.get("simulated_at")
+    if simulated_at is None:
+        return False
+    current = now if now is not None else time.time()
+    return current - float(simulated_at) <= max_age_seconds
 
 
 __all__ = [
     "TenderlyOutcome",
     "TenderlySimulator",
     "build_tenderly_stage",
+    "is_simulation_fresh",
 ]
