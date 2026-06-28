@@ -1,0 +1,22 @@
+# Treasury concentration limits (Group F) — the written risk appetite.
+#
+# Loaded by `napg.treasury.load_treasury_limits()`. Field names map 1:1 to the
+# `TreasuryLimits` pydantic model. Values are in basis points (10000 = 100%).
+# Source of truth for the rationale: docs/treasury-policy.md.
+
+# Max share of the treasury in any single DeFi protocol once funds are deployed
+# beyond bare USDC. 4000 bps = 40%.
+max_single_protocol_bps = 4000
+
+# Max share in stablecoins. 6000 bps = 60%. Bites only once non-stable assets
+# enter the treasury.
+max_stablecoin_bps = 6000
+
+# Max share with any single issuer. 10000 bps = 100% at launch: a 24h acceptable
+# Base-outage assumption makes 100% on-Base USDC tolerable for launch. Tighten
+# (and add cross-chain / off-chain reserves) if that assumption changes.
+max_single_issuer_bps = 10000
+
+# Maximum acceptable permanent loss before the position is wound down regardless
+# of yield. 500 bps = 5%.
+max_acceptable_permanent_loss_bps = 500
