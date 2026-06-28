@@ -74,6 +74,11 @@ def build_policy_stage(
                 ),
             )
 
+        if intent.is_swap:
+            slippage_check = _check_swap_slippage(intent, policy.max_slippage_bps)
+            if slippage_check is not None:
+                return slippage_check
+
         if not is_native_or_attribution(intent.data, builder_code):
             # A native transfer, optionally tagged with our exact Builder Code
             # suffix, is allowed. ERC-20 calldata decoding lands later; until
@@ -101,6 +106,41 @@ def build_policy_stage(
         return StageResult(stage="policy", passed=True)
 
     return _stage
+
+
+def _check_swap_slippage(intent: TxIntent, max_slippage_bps: int) -> StageResult | None:
+    """Fail-closed slippage floor for swap intents. Returns a failing StageResult,
+    or None if the swap clears the floor.
+
+    A swap is unsignable unless it declares both a quoted output and an on-chain
+    minimum, and the implied slippage is within the policy cap. Slippage bounds
+    how much the swap can lose to price movement / adverse fills before the
+    on-chain `minOut` reverts it.
+    """
+    if intent.min_out_wei is None or intent.quoted_out_wei is None:
+        return StageResult(
+            stage="policy",
+            passed=False,
+            reason="swap intent missing min_out_wei/quoted_out_wei (slippage floor required)",
+        )
+    if intent.quoted_out_wei <= 0:
+        return StageResult(
+            stage="policy", passed=False, reason="swap quoted_out_wei must be positive"
+        )
+    if intent.min_out_wei > intent.quoted_out_wei:
+        return StageResult(
+            stage="policy",
+            passed=False,
+            reason="swap min_out_wei exceeds quoted_out_wei (nonsensical)",
+        )
+    implied_bps = (intent.quoted_out_wei - intent.min_out_wei) * 10_000 // intent.quoted_out_wei
+    if implied_bps > max_slippage_bps:
+        return StageResult(
+            stage="policy",
+            passed=False,
+            reason=(f"swap implied slippage {implied_bps}bps exceeds cap {max_slippage_bps}bps"),
+        )
+    return None
 
 
 def _daily_spend_wei(audit_log: AuditLog, now: float) -> int:

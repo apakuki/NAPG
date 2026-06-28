@@ -70,6 +70,14 @@ class PolicyConfig(BaseModel):
 
     max_value_wei_per_tx: int = Field(ge=0)
     daily_spend_cap_wei: int = Field(ge=0)
+    # Group E MEV gate. Maximum tolerated slippage on a swap intent, in basis
+    # points: a swap whose min_out implies more than this slippage off the quote
+    # fails closed. Default 50 (0.5%) per kickoff decision 3.
+    max_slippage_bps: int = Field(default=50, ge=0, le=10_000)
+    # Maximum age (seconds) of a Stage 3 simulation at signing time. Beyond this
+    # the market may have moved between sim and inclusion; re-simulate rather than
+    # sign stale. Default 5s per the hardening review.
+    max_simulation_age_seconds: float = Field(default=5.0, ge=0)
     # Empty allowlist = no token-allowlist check (native ETH only is enforced by
     # the calldata check in Stage 2). Non-empty list reserves space for ERC-20
     # allowlisting when calldata decoding lands.

@@ -14,6 +14,7 @@ from napg.agentshield.pipeline import TxIntent
 from napg.agentshield.stages.tenderly import (
     TenderlySimulator,
     build_tenderly_stage,
+    is_simulation_fresh,
 )
 
 ADDR_AGENT = "0x" + "a" * 40
@@ -240,3 +241,48 @@ def test_simulator_raises_on_non_200() -> None:
     )
     with pytest.raises(RuntimeError, match="HTTP 401"):
         simulator.simulate(_intent())
+
+
+# ---- simulation freshness gate (Group E) ----
+
+
+def test_passing_stage_stamps_simulated_at() -> None:
+    intent = TxIntent(
+        action="migrate_to_safe",
+        from_address=ADDR_AGENT,
+        to_address=ADDR_SAFE,
+        value_wei=1000,
+        data="0x",
+    )
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "simulation": {"status": True},
+                "transaction": {"status": True, "gas_used": 21_000},
+            },
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    sim = TenderlySimulator(
+        account_slug="a", project_slug="p", access_key="k", network_id=84532, http=client
+    )
+    stage = build_tenderly_stage(
+        account_slug="a", project_slug="p", access_key="k", network_id=84532, simulator=sim
+    )
+    result = stage(intent)
+    assert result.passed is True
+    assert "simulated_at" in result.details
+
+
+def test_is_simulation_fresh_within_window() -> None:
+    assert is_simulation_fresh({"simulated_at": 1000.0}, 5.0, now=1003.0) is True
+
+
+def test_is_simulation_fresh_rejects_stale() -> None:
+    assert is_simulation_fresh({"simulated_at": 1000.0}, 5.0, now=1010.0) is False
+
+
+def test_is_simulation_fresh_fails_closed_without_stamp() -> None:
+    assert is_simulation_fresh({}, 5.0, now=1000.0) is False
