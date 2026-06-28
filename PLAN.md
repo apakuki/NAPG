@@ -193,7 +193,7 @@ Make NAPG discoverable in the Base App and authable without a password.
 - [x] Basenames (BNS) resolution for display — `frontend/src/lib/basenames.ts` does server-side reverse resolution against Base mainnet using the canonical [base-org/basenames](https://github.com/base-org/basenames) contracts: `ReverseRegistrar.node(address)` (`0x79ea96012eea67a83431f1701b3dff7e37f9e282`) → `L2Resolver.name(node)` → forward-verify via `L2Resolver.addr(namehash(name))` (`0xC6d566A56A1aFf6508b41f6c90ff131615583BCD`). The forward-verify step is non-negotiable: anyone can write a `name(node)` record on their own reverse node, so trusting the reverse lookup alone would let a squatter render `vitalik.base.eth` for their address (covered by `test_returns_null_when_forward_resolution_does_not_match`). 5-minute in-memory cache keyed by lowercased address; null results are cached too so RPC failures don't hammer the upstream. The SIWF poll route now captures `verifyResult.data.address` (the Ethereum address recovered by the relay's signature check) and seals it into the `napg_session` cookie alongside the fid; the session payload schema is `{fid, address, exp}` with a strict `^0x[0-9a-fA-F]{40}$` guard on read (`test_rejects_a_payload_whose_address_is_not_0x_hex_20_bytes`). `/settings` server-renders the Basename or, on no-record / RPC-fail / forward-verify-fail, the truncated `0xabcd...wxyz` fallback per the Phase 3 troubleshooting playbook. 10 unit tests on the lib (positive path, squatter-defeats-forward-verify, no-record, RPC failure, cache hit, null caching, case-insensitive key, namehash-shape lock-in, plus 2 on `truncateAddress`); live smoke verified against Base mainnet: `0x2211...7DA9` → `jesse.base.eth`, `0x97BC...6e72` → `base.base.eth`, `0xd8dA...6045` (Vitalik, no Basename) → graceful truncated-address fallback
 - [x] CDP MPC Smart Wallet via Passkey; verify EIP-5792 batch and sponsored gas — `frontend/src/lib/wagmi.ts` configures wagmi v3 with a single `coinbaseWallet({ preference: { options: "smartWalletOnly" } })` connector against Base + Base Sepolia. `smartWalletOnly` forces the Passkey-backed Smart Wallet path; there is no EOA/mnemonic fallback exposed in the UI (matches Phase 3 security baseline "Passkey-only for wallet ops; no mnemonic recovery path, period"). `frontend/src/app/_components/providers.tsx` is the client-only WagmiProvider + QueryClientProvider tree, mounted in `layout.tsx`. `_components/passkey-wallet.tsx` is the connect/disconnect surface on `/settings`: when disconnected it shows a "Connect Smart Wallet" button bound to the Coinbase connector; when connected it shows the truncated address, capability badges (atomic-batch + paymaster-sponsored gas, decoded by `lib/capabilities.ts::summarizeCapabilities` from wagmi's `useCapabilities()`), and Disconnect. Capability summary is fail-closed: missing keys, malformed shape, `atomic.status === "unsupported"`, or `paymasterService.supported === false` all render as "not supported" rather than throwing. 7 unit tests on the pure summariser cover atomic-supported, atomic-ready, atomic-unsupported, missing keys, null/undefined input, paymaster=false, and extra-key pass-through. CSP impact: zero — the SDK uses `window.open()` popups + `postMessage` (neither gated by CSP) and the Smart Wallet codepath (`@coinbase/wallet-sdk/dist/sign/scw/`) does not inject DOM. Live smoke against `/settings` (unauthed + authed-as-jesse.base.eth) confirms both Identity and Smart Wallet cards render at HTTP 200 with the SDK bundle loaded and zero runtime errors. **Not tested end-to-end**: the actual Passkey UX (popup → Touch ID / Face ID → wallet creation → capability response) requires a real browser + real Passkey provider and cannot be driven from CLI; first human-verified Passkey flow lands at Phase 3 sign-off. Pinned deps: `wagmi@^3.6.15`, `@tanstack/react-query@^5.100.11`, `@coinbase/wallet-sdk@^4.3.7`
 - [x] Base.dev metadata + mini-app manifest — `app/.well-known/farcaster.json/route.ts` serves the canonical Farcaster Frame v2 manifest (`version`, `name`, `homeUrl`, `iconUrl`, `splashImageUrl`, `splashBackgroundColor`, `heroImageUrl`, `subtitle`, `description`, `primaryCategory`, `tags`, `requiredChains` as CAIP-2 `eip155:8453`/`eip155:84532`, `requiredCapabilities`, `canonicalDomain`). Schema lives in `lib/manifest.ts` with the route handler as a thin wrapper, so the schema is unit-tested in isolation (9 tests cover required-fields presence, spec string-length limits, CAIP-2 chains, accountAssociation env-var attach/omit/malformed-rejection, and the home embed). Origin is derived per-request from `x-forwarded-host`/`host` + `x-forwarded-proto`, so the same code serves dev + staging + prod without env-specific build config. Per-page Frame embed (`fc:miniapp` meta tag) attached to `/` via `generateMetadata` using the same request-derived origin; tests verified the JSON-encoded payload contains a `launch_frame` action pointing at the home URL with the right splash assets. Asset routes: `app/api/og/icon-1024/route.tsx` (1024×1024 PNG), `app/api/og/splash/route.tsx` (200×200), `app/opengraph-image.tsx` (1200×630, doubles as Frame `heroImageUrl`). All three share `_components/brand-mark.tsx` for visual coherence and render via `next/og`'s `ImageResponse`. CSP proxy matcher updated to skip `.well-known/`, `api/og/`, and `opengraph-image` so the JSON manifest stays cacheable and the image responses don't carry CSP headers they don't need. Live smoke confirmed: manifest parses, every PNG is at exact spec dimensions (`file` reports 1024×1024 / 200×200 / 1200×630), `fc:miniapp` meta tag present on `/`, manifest path returns `application/json` with no CSP header, HTML routes still carry the strict CSP. **Two deferred items**: (1) `accountAssociation` — env-driven via `NAPG_FARCASTER_ACCOUNT_ASSOCIATION` but unset until the user signs the domain-binding payload with their Farcaster custody key via the Farcaster Manifest Tool (lands at Phase 3 sign-off or Phase 5 deploy when the production domain is fixed). (2) PNG alpha channel: spec says iconUrl is "no alpha" but `next/og` always emits RGBA. The pixels are fully opaque so the image renders correctly; base.dev validator is historically lenient. Hard-stripping alpha would mean adding `sharp` as a runtime dep, deferred to Phase 5 polish
-- [x] Submit to the Base App mini-app directory — carried to Phase 5 frontend cutover. Directory submission requires a fixed production domain (the manifest `canonicalDomain` and the signed `accountAssociation` must bind to it), which does not exist until the Phase 5 production deploy. Tracked in [Phase 5 / frontend cutover](#phase-5-wk-6-mainnet-launch); manifest + assets already pass `base.dev/manifest/validate` shape checks ([manual test 3.8](docs/manual-tests/phase-3.md#38--basedev-manifest--frame-embed))
+- [x] Submit to the Base App mini-app directory — carried to Phase 5 frontend cutover. Directory submission requires a fixed production domain (the manifest `canonicalDomain` and the signed `accountAssociation` must bind to it), which does not exist until the Phase 5 production deploy. Tracked in [Phase 5 / frontend cutover](#phase-5-validation-operational-readiness-and-mainnet-launch); manifest + assets already pass `base.dev/manifest/validate` shape checks ([manual test 3.8](docs/manual-tests/phase-3.md#38--basedev-manifest--frame-embed))
 - [x] Add "Share to Farcaster" affordance on Protocol Health Reports — Phase 5 ships glossy automated weekly Protocol Health Reports as the Cast-Driven Onboarding Loop; for Phase 3 the surfaces a user would plausibly share are the breach feed (`/breaches`) and the per-protocol detail pages (`/protocols/[id]`), so the affordance lands there. Each page now ships its own `fc:miniapp` per-page Frame embed via `generateMetadata` (so the Farcaster client renders a launch-frame button when the cast is shared, not a generic OG card), wired through three new helpers in `lib/manifest.ts`: `buildBreachFeedEmbed(origin)`, `buildProtocolEmbed(origin, id)` (URL-encodes the id to defend against path injection), and a generic `buildComposeIntentUrl(text, embedUrl)` that targets `https://farcaster.xyz/~/compose?text=…&embeds[]=…`, truncates over-long text to the 280-char ceiling with a trailing ellipsis (Farcaster cast cap is 320; we leave room so the embed card draws attention), and URL-encodes both fields. `_components/share-to-farcaster.tsx` is the client component: an `<a target="_blank" rel="noopener noreferrer">` that the Farcaster client intercepts inside the in-app browser (and that mainline browsers open as a new tab). No Farcaster API key, no signer, no audit trail -- the user reviews + posts the cast manually, NAPG never signs anything on their behalf. 7 new tests cover the URL builder (target, encoding, truncation, no-truncation short-text path), the per-page embed helpers (URL targeting, id-encoding, title-length limit), plus the component (href shape + target/rel). Live smoke: `/breaches` and `/protocols/aerodrome` both render the share button with a well-formed compose URL pointing back at the shared page, plus their own `fc:miniapp` meta tag for the embed
 
 ### Security
@@ -219,11 +219,11 @@ Make NAPG discoverable in the Base App and authable without a password.
 ### Success criteria
 - [x] User can log in with Farcaster and see their Basename — verified live 2026-06-27: real Farcaster account signed in via SIWF (inline QR scanned from phone), `/settings` rendered "Signed in as `<fid>`" with the user's resolved Basename ([manual tests 3.1](docs/manual-tests/phase-3.md#31--live-siwf-sign-in-round-trip) + [3.6](docs/manual-tests/phase-3.md#36--basenames-reverse-resolution))
 - [x] Passkey-backed MPC wallet is created with no seed phrase exposed — verified live 2026-06-27: Passkey (Face ID) Smart Wallet creation, both capability dots green, no seed phrase shown ([manual test 3.7](docs/manual-tests/phase-3.md#37--passkey-backed-smart-wallet-creation))
-- [x] App is discoverable inside the Base App mini-app directory — carried to Phase 5 frontend cutover (deploy-gated, not a build defect): directory submission needs the fixed production domain for the manifest `canonicalDomain` + signed `accountAssociation`. The build is submission-ready — manifest, Frame embeds, and assets pass shape validation. Tracked in [Phase 5](#phase-5-wk-6-mainnet-launch)
+- [x] App is discoverable inside the Base App mini-app directory — carried to Phase 5 frontend cutover (deploy-gated, not a build defect): directory submission needs the fixed production domain for the manifest `canonicalDomain` + signed `accountAssociation`. The build is submission-ready — manifest, Frame embeds, and assets pass shape validation. Tracked in [Phase 5](#phase-5-validation-operational-readiness-and-mainnet-launch)
 - [x] CSP, cookie flags, and rate-limits verified in browser devtools — CSP: live headers verified 2026-06-27 (`script-src`/`style-src` nonce + `strict-dynamic`, no `unsafe-inline`; per-request nonce rotates). A devtools console violation was found (nav inline `style` attribute) and fixed (moved to a `.safe-bottom` class) + redeployed. Rate-limit: live parallel burst returned 62×200 + 18×429 with the token-bucket cutoff. Cookie flags (`HttpOnly`/`Secure`/`SameSite=Lax`): enforced + unit-tested in `lib/session.ts` (`secure` flips on under HTTPS staging); session never touches `localStorage`/`sessionStorage` (session-storage confirmed empty in devtools). See [manual tests 3.4](docs/manual-tests/phase-3.md#34--rate-limit-on-auth-surface) + [3.5](docs/manual-tests/phase-3.md#35--cookie--csp-devtools-audit)
 - [x] ZAP baseline returns no HIGH/CRITICAL findings — done 2026-06-02 (staging): zero HIGH/CRITICAL, 3 residual WARNs accepted in the threat model. See [manual test 3.9](docs/manual-tests/phase-3.md#39--lighthouse--owasp-zap)
 - [x] Phase 3 threat-model addendum filed — [docs/threat-models/phase-3.md](docs/threat-models/phase-3.md) walks the ten new attack surfaces (SIWF channel-token replay, session cookie forgery, CSRF on state-changing routes, XFF spoof, CSP regression, Basename squatter, API response leakage, share-intent phishing, in-app browser sandbox, spoofed Host on manifest) with mitigations, threat/mitigation summary table, eight accepted-risk items deferred to Phase 5 or sign-off, and a Phase 4 delta note covering x402 + Builder Code + reporting key separation
-- [x] User signs off on Phase 3 — Samuel Apakuki Nayacakalou, 2026-06-27 (authorized in chat: chose "sign off, carry deploy-gated items to Phase 5" and confirmed the live checks — SIWF login + Basename, Passkey Smart Wallet with both capability dots green — passed on a real device). Three deploy-gated items carried to the [Phase 5 frontend-cutover substep](#phase-5-wk-6-mainnet-launch): Base App directory submission, real-device in-app-browser pass (3.10 open boxes), and production-domain `accountAssociation` signing
+- [x] User signs off on Phase 3 — Samuel Apakuki Nayacakalou, 2026-06-27 (authorized in chat: chose "sign off, carry deploy-gated items to Phase 5" and confirmed the live checks — SIWF login + Basename, Passkey Smart Wallet with both capability dots green — passed on a real device). Three deploy-gated items carried to the [Phase 5 frontend-cutover substep](#phase-5-validation-operational-readiness-and-mainnet-launch): Base App directory submission, real-device in-app-browser pass (3.10 open boxes), and production-domain `accountAssociation` signing
 
 ### Troubleshooting
 - **SIWF login loops; cookie never sets** -> third-party cookie blocking inside the Base App in-app browser -> use first-party cookies, confirm `Set-Cookie` domain matches the app's eTLD+1; check `SameSite` value.
@@ -332,19 +332,85 @@ threat-model delta before the next. Security is built into each layer as it land
 - **Stage 3 blocks a swap the quote said was fine** -> stale or hostile quote, or the state-diff parse is reading the wrong balance delta -> confirm the simulated received amount maps to the right token/recipient; trust the simulation over the quote and fail closed.
 - **Swap submitted but no MEV protection applied** -> a submit path bypassed the protected endpoint -> all token-action submission must route through the configured endpoint after `validate_or_die`; the native-transfer path is the only one allowed to use the default RPC.
 
-## Phase 5 (Wk 6): Mainnet launch
+## Phase 5: Validation, operational readiness, and mainnet launch
 
-Production cutover and growth loop.
+**Stance: Phase 5 is a validation and operational-readiness phase, not a feature
+phase.** Phases 0-4 answered "can we build this?"; Phase 5 answers "can we prove
+this deserves to be trusted with real money?" — which takes evidence, operations,
+incident response, audits, customers, and production telemetry, not 5,000 more
+lines of code.
 
-### Substeps
-- [ ] Deploy agent to a production host (Fly.io, Render, or AWS - pick during the phase)
-- [ ] Frontend cutover (carried from Phase 3, deploy-gated on the production domain): (1) sign the `accountAssociation` domain-binding payload with the Farcaster custody key via the [Farcaster Manifest Tool](https://warpcast.com/~/developers/mini-apps/manifest) and set `NAPG_FARCASTER_ACCOUNT_ASSOCIATION` in production secrets; (2) submit to the Base App mini-app directory (validate at `base.dev/manifest/validate` first); (3) real-device in-app-browser pass — third-party-cookie-free SIWF round-trip, share-sheet posting a launch-frame card ([manual test 3.10](docs/manual-tests/phase-3.md#310--inside-the-base-app-in-app-browser) open boxes); (4) re-run Lighthouse + ZAP baseline against the production URL
-- [ ] Mainnet RPC, mainnet AgentShield policy (tighter caps than testnet)
-- [ ] Migrate Aerodrome and Seamless monitors to Base mainnet
-- [ ] Production audit-log storage with retention policy
-- [ ] Cast-Driven Onboarding Loop: scheduled Farcaster posts on protocol events and weekly health reports
-- [ ] On-call runbook: how to pause the agent, rotate keys, respond to a breach false-positive
-- [ ] Status page at a public URL
+> **FEATURE FREEZE.** No new protocols, chains, tokens, or agent capabilities
+> until the full chain — observation -> simulation -> authorization -> execution —
+> is validated end to end. **Swap authorization stays frozen** until E3's parser
+> passes its shadow-mode security review (W1). Adding capability before the
+> existing one is proven is the failure mode this phase exists to prevent.
+
+### Substeps (validation workstreams)
+
+**W1 — Validate E3 against reality (P0; the biggest technical unknown).** The
+authorization-critical state-diff parser, proven before it ever authorises. Per
+[docs/design/e3-state-diff-shadow-mode.md](docs/design/e3-state-diff-shadow-mode.md):
+- [ ] Stand up the first real token action (prefer the lowest-MEV form — a
+  transfer-style safe-rotation, kickoff decision 2 — or a single constrained
+  Aerodrome USDC/USDT swap purely to generate shadow data)
+- [ ] Implement the Stage 3 parser in **shadow mode**: store the raw Tenderly
+  payload (`swap_simulation` audit kind), parse it, record parsed-vs-realized —
+  **never sign on it**
+- [ ] Collect >= 1 week AND >= 1000 simulations of parsed-vs-realized data
+- [ ] Written security review of the parser + the collected data (property/fuzz
+  tests green, schema version-pin in place, fail-closed verified)
+- [ ] Only then: parser becomes authoritative; swap authorization can unfreeze
+
+**W2 — Live treasury poller (P1; security-critical).** The Group F engine is only
+as good as its observations.
+- [ ] On-chain balance poller producing `TreasuryPosition`s; writes
+  `treasury_snapshot` rows on a schedule
+- [ ] Handle the failure modes explicitly: RPC failure, stale balances, partial
+  reads, token-metadata changes, Base outage — each fail-closed / flagged, never
+  a silently-wrong snapshot
+
+**W3 — Tenderly fallback (P1; remove the single point of authorization
+dependency).**
+- [ ] Local anvil-fork simulation as the durable replacement for the migration
+  override, so a Tenderly outage no longer blocks the safety migration. The
+  override becomes a rarely-used backstop
+
+**W4 — Mainnet operational exercises (P1; runbook proving).** Tabletop each
+scenario against the runbooks; a runbook that doesn't survive the exercise gets
+fixed before launch:
+- [ ] Tenderly unavailable ([infra-outage.md](docs/runbooks/infra-outage.md))
+- [ ] Base unavailable
+- [ ] USDC depeg rumours ([false-positive-breach.md](docs/runbooks/false-positive-breach.md))
+- [ ] False-positive migration
+- [ ] Compromised API key / MPC compromise ([key-compromise.md](docs/runbooks/key-compromise.md))
+- [ ] Kill-switch drill ([kill-switch.md](docs/runbooks/kill-switch.md))
+
+**W5 — Mainnet cutover (production mechanics).**
+- [ ] Deploy agent to a production host (Fly.io/Render/AWS - pick during the phase)
+- [ ] Mainnet RPC + mainnet AgentShield policy (tighter caps than testnet; reviewed in writing)
+- [ ] Migrate Aerodrome + Morpho monitors to Base mainnet
+- [ ] Production audit-log storage + retention policy + encrypted daily backups + tested restore
+- [ ] Key rotation as part of cutover (ops wallet, reporting key, audit HMAC, CDP, Tenderly)
+- [ ] On-call runbook + status page (deep health check, not just `/healthz`)
+
+**W6 — Frontend cutover (carried from Phase 3, deploy-gated on the production domain).**
+- [ ] Sign the `accountAssociation` payload (Farcaster custody key) -> `NAPG_FARCASTER_ACCOUNT_ASSOCIATION`
+- [ ] Submit to the Base App mini-app directory (validate at `base.dev/manifest/validate` first)
+- [ ] Real-device in-app-browser pass ([manual test 3.10](docs/manual-tests/phase-3.md#310--inside-the-base-app-in-app-browser) open boxes)
+- [ ] Re-run Lighthouse + ZAP against the production URL
+
+**W7 — Growth loop.**
+- [ ] Cast-Driven Onboarding Loop: scheduled Farcaster posts on protocol events + weekly Protocol Health Reports
+
+**W8 — Commercial validation (P2; now a top risk).**
+- [ ] Customer discovery with the likely first users — treasury DAOs, AI trading platforms, agent-orchestration companies, institutional DeFi operators — *before* scaling. Answer "who desperately needs this?"
+
+**W9 — Regulatory mapping (P2; begin now, counsel before scale).**
+- [ ] Map the posture: monitoring vs execution vs discretion vs custody; is autonomous migration a "managed service"? Document the answers; engage counsel before scale
+
+**W10 — External security audit (P2).**
+- [ ] Third-party audit, with the E3 state-diff parser and the signing pipeline as the focus
 
 ### Security
 - [ ] All secrets in `fly secrets`; never baked into the Docker image; rotate every key as part of cutover
@@ -359,19 +425,25 @@ Production cutover and growth loop.
 - [ ] Mainnet AgentShield policy: tighter caps than testnet (per-tx, daily, weekly); reviewed in writing
 
 ### Tests
+- [ ] E3 shadow-mode data collection harness: parsed-vs-realized recorded for every simulation; property/fuzz suite over `asset_changes` (multiple/duplicate/extra/missing/zero transfers, odd decimals, recipient mismatch) all fail closed; Tenderly schema version-pin rejects unknown shapes (W1)
+- [ ] Treasury poller failure-injection tests: RPC error / stale / partial read / metadata change each produce a flagged (not silently-wrong) snapshot (W2)
+- [ ] All six W4 tabletop exercises executed and documented (Tenderly down, Base down, USDC depeg, false-positive migration, key/MPC compromise, kill-switch)
 - [ ] Smoke run on mainnet with caps set to dust amounts
 - [ ] Failover test: kill the agent, confirm monitors recover cleanly on restart
 - [ ] Backup/restore test for the audit log (full restore, not just file copy)
 - [ ] Kill-switch drill on mainnet
-- [ ] Incident-response tabletop exercise
 - [ ] Manual end-to-end: a real Base App user signs in, sees live data, opts into Guardian Mode
 - [ ] Manual test procedures completed: [docs/manual-tests/phase-5.md](docs/manual-tests/phase-5.md)
 
 ### Success criteria
+- [ ] **E3 parser passed its written shadow-mode security review** on >= 1 week / >= 1000 simulations of parsed-vs-realized data before being made authoritative (W1). Swap authorization stays frozen until this gate.
+- [ ] Live treasury poller validated against its failure modes (RPC failure / stale / partial / metadata change / Base outage) — no silently-wrong snapshot (W2)
+- [ ] All W4 tabletop exercises run; every runbook that failed an exercise was fixed before launch
 - [ ] Agent runs unattended on mainnet for 72 hours with no incidents
 - [ ] First weekly Protocol Health Report is posted to Farcaster
 - [ ] At least one external agent has paid via x402 for an Assurance Report
 - [ ] Restore-from-backup and kill-switch drills both succeeded
+- [ ] External security audit complete; findings triaged (W10)
 - [ ] User signs off on launch
 
 ### Troubleshooting
