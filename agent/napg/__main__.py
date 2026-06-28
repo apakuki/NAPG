@@ -5,18 +5,24 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 
 from napg import __version__
 from napg.actions import migrate_to_safe
 from napg.agentshield.policy import (
+    default_policy_path,
     default_private_key_path,
     default_public_key_path,
     generate_keypair,
+    load_policy,
     sign_file,
     verify_file,
 )
-from napg.agentshield.production import build_production_validator
+from napg.agentshield.production import (
+    build_migration_override_validator,
+    build_production_validator,
+)
 from napg.api import create_app
 from napg.audit import AuditLog
 from napg.audit import verify as audit_verify
@@ -26,6 +32,7 @@ from napg.monitor.morpho import MorphoMonitor
 from napg.monitor.resilience import FailoverRpcHeartbeat
 from napg.monitor.rpc import RpcHeartbeat
 from napg.orchestrator import run_cycle
+from napg.override import arm_migration_override, latest_armed_override
 from napg.policy.breaches import load_thresholds
 from napg.reasoning import Reasoner
 from napg.reporting import (
@@ -129,6 +136,74 @@ def _cmd_migrate(args: argparse.Namespace) -> int:
             ),
         )
 
+    print(record.model_dump_json(indent=2))
+    return 0
+
+
+def _cmd_override_arm(args: argparse.Namespace) -> int:
+    """Arm an emergency migration override (step 1 of the two-step). Records a
+    `migration_override_armed` audit row; does not move funds."""
+    settings = Settings()
+    if not settings.safe_contract_address:
+        raise RuntimeError("NAPG_SAFE_CONTRACT_ADDRESS is not set; nothing to arm an override for.")
+    if not settings.audit_hmac_key:
+        raise RuntimeError("NAPG_AUDIT_HMAC_KEY is not set; refusing to arm without audit logging.")
+    policy = load_policy(default_policy_path(), default_public_key_path())
+    with AuditLog(settings.audit_db_path, hmac_key=settings.audit_hmac_key) as log:
+        grant = arm_migration_override(
+            log,
+            safe_address=settings.safe_contract_address,
+            approver=args.approver,
+            justification=args.justification,
+            now=time.time(),
+            wait_seconds=policy.migration_override_wait_seconds,
+            ttl_seconds=policy.migration_override_ttl_seconds,
+        )
+    print(grant.model_dump_json(indent=2))
+    print(
+        f"armed. executable after {grant.executable_after:.0f}, expires {grant.expires_at:.0f} "
+        "(epoch). Run `napg override execute --amount-eth ... --execute` after the wait.",
+        file=sys.stderr,
+    )
+    return 0
+
+
+def _cmd_override_execute(args: argparse.Namespace) -> int:
+    """Execute a migration under a previously-armed override (step 2). The
+    override validator re-checks the two-step wait + expiry; every other
+    AgentShield stage still runs. Only for use when Tenderly is unavailable."""
+    settings = Settings()
+    if not settings.audit_hmac_key:
+        raise RuntimeError("NAPG_AUDIT_HMAC_KEY is not set; refusing to act without audit logging.")
+    if not settings.anthropic_api_key:
+        raise RuntimeError(
+            "ANTHROPIC_API_KEY is not set; the Intent Judge still runs under override."
+        )
+    value_wei = int(float(args.amount_eth) * 10**18)
+    with AuditLog(settings.audit_db_path, hmac_key=settings.audit_hmac_key) as log:
+        grant = latest_armed_override(log)
+        if grant is None:
+            raise RuntimeError("no armed override found; run `napg override arm` first.")
+        wallet = build_agent_wallet(settings) if args.execute else _DryRunWallet(settings)
+        validator = (
+            build_migration_override_validator(
+                settings, grant=grant, now=time.time(), audit_log=log
+            )
+            if args.execute
+            else None
+        )
+        record = migrate_to_safe(
+            wallet,
+            grant.safe_address,
+            value_wei,
+            dry_run=not args.execute,
+            audit_log=log,
+            validator=validator,
+            builder_code=None,  # override is native-only; no Builder Code calldata
+            rationale=(
+                f"emergency migration override (Tenderly bypassed); approver={grant.approver}"
+            ),
+        )
     print(record.model_dump_json(indent=2))
     return 0
 
@@ -361,6 +436,28 @@ def main(argv: list[str] | None = None) -> int:
         help="actually submit the transaction (default: dry-run only)",
     )
 
+    override = sub.add_parser(
+        "override",
+        help="emergency migration override (breaking-glass; use only when Tenderly is down)",
+    )
+    override_sub = override.add_subparsers(dest="override_command")
+    override_arm = override_sub.add_parser(
+        "arm", help="step 1: arm an override (manual approval; records an audit row)"
+    )
+    override_arm.add_argument("--approver", required=True, help="who is authorising this override")
+    override_arm.add_argument(
+        "--justification", required=True, help="why breaking glass is necessary"
+    )
+    override_exec = override_sub.add_parser(
+        "execute", help="step 2: migrate under the armed override (after the two-step wait)"
+    )
+    override_exec.add_argument(
+        "--amount-eth", required=True, help="amount of native ETH to migrate (decimal string)"
+    )
+    override_exec.add_argument(
+        "--execute", action="store_true", help="actually submit (default: dry-run only)"
+    )
+
     simulate = sub.add_parser(
         "simulate",
         help="run an end-to-end pipeline cycle on a synthesized scenario",
@@ -474,6 +571,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "migrate":
         return _cmd_migrate(args)
+    if args.command == "override":
+        if args.override_command == "arm":
+            return _cmd_override_arm(args)
+        if args.override_command == "execute":
+            return _cmd_override_execute(args)
+        override.print_help()
+        return 0
     if args.command == "simulate":
         if args.scenario == "sequencer-delay":
             return _cmd_simulate_sequencer_delay(args)

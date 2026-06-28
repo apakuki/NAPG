@@ -78,6 +78,12 @@ class PolicyConfig(BaseModel):
     # the market may have moved between sim and inclusion; re-simulate rather than
     # sign stale. Default 5s per the hardening review.
     max_simulation_age_seconds: float = Field(default=5.0, ge=0)
+    # Emergency migration override bounds (hardening decision 4). Two-step wait
+    # between arming and executing the degraded-Tenderly migration override, and
+    # the TTL after which an armed override expires. Both bound the blast radius
+    # of breaking-glass; signed so they cannot be quietly widened.
+    migration_override_wait_seconds: float = Field(default=60.0, ge=0)
+    migration_override_ttl_seconds: float = Field(default=1800.0, ge=0)
     # Empty allowlist = no token-allowlist check (native ETH only is enforced by
     # the calldata check in Stage 2). Non-empty list reserves space for ERC-20
     # allowlisting when calldata decoding lands.
