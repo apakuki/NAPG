@@ -15,10 +15,10 @@
     "@coinbase/wallet-sdk": "^4.3.7",
     "@farcaster/auth-client": "^0.7.1",
     "@tanstack/react-query": "^5.100.11",
-    "next": "16.2.6",
+    "next": "16.2.9",
     "qrcode.react": "^4.2.0",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
     "viem": "^2.50.4",
     "wagmi": "^3.6.15"
   },
@@ -31,11 +31,11 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^4.3.4",
-    "eslint": "^9",
-    "eslint-config-next": "16.2.6",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "16.2.9",
     "jsdom": "^25.0.0",
     "tailwindcss": "^4",
-    "typescript": "^5",
+    "typescript": "6.0.3",
     "vitest": "^4.1.8"
   },
   "overrides": {
