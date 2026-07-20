@@ -348,6 +348,19 @@ lines of code.
 
 ### Substeps (validation workstreams)
 
+**Sequencing decision (2026-07-20): W8 is front-loaded and runs concurrent with
+W1.** Phases 0-4 shipped a technically complete agent with zero revenue signal —
+nobody has paid $1. That makes *commercial* demand, not the E3 parser, the
+largest unproven risk in the whole project. But W1's gate is elapsed-time-bound
+(>= 1 week AND >= 1000 shadow sims), so its clock should start ticking now and
+then accrue data passively. The active-effort priority during that collection
+window is W8: put the working Phase-4 agent in front of real buyers. The two do
+not compete for the critical path — W1 waits on wall-clock, W8 waits on the
+builder. If W8 finds no buyer for the autonomous-migration thesis, that redirects
+W1-W7 (e.g. sell alerts-only, defer the moat) *before* more is built on it. This
+does not touch the FEATURE FREEZE: W8 is discovery and demos of what exists, not
+new capability.
+
 **W1 — Validate E3 against reality (P0; the biggest technical unknown).** The
 authorization-critical state-diff parser, proven before it ever authorises. Per
 [docs/design/e3-state-diff-shadow-mode.md](docs/design/e3-state-diff-shadow-mode.md):
@@ -403,8 +416,12 @@ fixed before launch:
 **W7 — Growth loop.**
 - [ ] Cast-Driven Onboarding Loop: scheduled Farcaster posts on protocol events + weekly Protocol Health Reports
 
-**W8 — Commercial validation (P2; now a top risk).**
-- [ ] Customer discovery with the likely first users — treasury DAOs, AI trading platforms, agent-orchestration companies, institutional DeFi operators — *before* scaling. Answer "who desperately needs this?"
+**W8 — Commercial validation (P0 — FRONT-LOADED; runs concurrent with W1's collection window).** The falsifiable test: *will five B2B buyers each commit to paying for this?* No code required — the Phase-4 agent + staging deploy is the demo.
+- [ ] Competitor teardown first (Forta, Hypernative, Hexagate, BlockSec, OpenZeppelin Defender, DeFiLlama): what does each do well, and specifically what do they *not* cover on Base that NAPG's operational-assurance angle does. One page; it decides positioning
+- [ ] Target the buyers who value operational rigor and can pay, not retail: protocol teams, DAO treasurers, crypto funds, agent-orchestration companies. (Retail $20/mo is a crowded, low-willingness-to-pay corner — explicitly out of scope for this test)
+- [ ] Run >= 15 discovery conversations; lead with the loss the buyer fears, not the architecture. Answer "who desperately needs this?" with names
+- [ ] Sell the wedge that touches the moat without demanding day-one trust: high-signal alerts + a documented safe-migration playbook they trigger manually. Autonomous migration is the long-term moat but the highest trust/liability barrier (see W9) — it is sequenced after revenue, not first
+- [ ] Success gate: >= 5 buyers verbally commit (LOI or paid pilot) before W5 mainnet cutover effort scales. A no here redirects W1-W7 (alerts-only pivot, defer autonomy) rather than being discovered post-launch
 
 **W9 — Regulatory mapping (P2; begin now, counsel before scale).**
 - [ ] Map the posture: monitoring vs execution vs discretion vs custody; is autonomous migration a "managed service"? Document the answers; engage counsel before scale
