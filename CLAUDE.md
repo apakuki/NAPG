@@ -10,13 +10,13 @@ Positioning: the reliability layer the Base ecosystem currently lacks — instit
 
 ## Builder profile
 
-Samuel Apakuki Nayacakalou ([linkedin.pdf](linkedin.pdf), [github.com/apakuki](https://github.com/apakuki)). 17.5 years at Optus as a Tier 1 Technical Analyst providing 24x7 service assurance to Federal Government clients — Cisco routing/switching, telephony, Unified Communications, with Moogsoft/StatSeeker/HP Openview for monitoring. Federal Government cleared. Self-taught Python developer since 2019; built a crypto trading bot that ran 1.4% daily compounded over 60,000 trades. UoS FinTech Bootcamp 2022–23, Postgrad Internetworking (UTS), BSc Computer Science (Curtin).
+Samuel Apakuki Nayacakalou ([github.com/apakuki](https://github.com/apakuki)). 17.5 years at Optus as a Tier 1 Technical Analyst providing 24x7 service assurance to Federal Government clients — Cisco routing/switching, telephony, Unified Communications, with Moogsoft/StatSeeker/HP Openview for monitoring. Python and Ubuntu Linux automation since 2019, including an unattended 24x7 automation platform that processed 60,000 transactions. Studying for CISSP. UoS FinTech Bootcamp 2022–23, Postgrad Internetworking (UTS), BSc Computer Science (Curtin).
 
-NAPG is the deliberate translation of that skill set onto Base: SLA-driven service assurance → onchain Protocol Service Assurance; Cisco troubleshooting → transaction-path auditing; Moogsoft/StatSeeker heartbeating → Web3.py RPC monitoring; Python trading-bot algorithmic maturity → autonomous agent orchestration.
+NAPG is the deliberate translation of that skill set onto Base: SLA-driven service assurance → onchain Protocol Service Assurance; Cisco troubleshooting → transaction-path auditing; Moogsoft/StatSeeker heartbeating → Web3.py RPC monitoring; Python and Linux automation → autonomous agent orchestration.
 
 ## Project status
 
-Greenfield. Repo currently contains only the spec PDF and supporting docs — no application code yet.
+Testnet only (Base Sepolia). Phases 1–3 built; Phase 4 in progress. See [PLAN.md](PLAN.md) for the live checklist.
 
 ## Architecture (per the brief)
 
