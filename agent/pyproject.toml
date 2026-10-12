@@ -3,7 +3,7 @@ name = "napg"
 version = "0.0.1"
 description = "NetAssure Protocol Guardian — autonomous Protocol Service Assurance agent for Coinbase Base"
 requires-python = ">=3.10"
-readme = "../README.md"
+readme = "README.md"
 authors = [
   { name = "Samuel Apakuki Nayacakalou" },
 ]
