@@ -40,7 +40,7 @@ The package does not repeat the engineering detail. It points to the documents t
 
 Some controls depend on account settings that cannot be read from the repository. They are marked "To confirm" in the control mapping and the Essential Eight assessment:
 
-- Multi-factor authentication on the GitHub, Fly.io, Coinbase Developer Platform, Anthropic and Tenderly accounts.
-- Whether the operator workstation uses a separate administrator account.
-- Fly.io volume snapshot schedule and retention for the audit database.
-- macOS and browser update settings on the operator workstation.
+- Browser settings for Java and web advertisements on the operator workstation.
+- Fly.io base image rebuild cadence.
+
+Confirmed by the owner on 14 October 2026: MFA is on for every service account; there is no separate macOS administrator account; macOS and browser updates were not automatic (the workstation was then updated to macOS 15.8.1 and automatic updates were turned on the same day); Fly.io snapshots the audit database volume daily with 5-day retention.

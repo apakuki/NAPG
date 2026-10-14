@@ -14,10 +14,10 @@ Counted by row. Some rows cover two closely related controls, so the 64 rows bel
 | Software development | 11 | 10 | 2 | 0 | 0 |
 | Web application development | 3 | 2 | 1 | 0 | 0 |
 | AI application development | 7 | 3 | 2 | 0 | 1 |
-| System access and credentials | 0 | 2 | 0 | 1 | 0 |
+| System access and credentials | 1 | 2 | 0 | 0 | 0 |
 | Security monitoring and event logging | 2 | 3 | 2 | 0 | 0 |
 | Backups, supply chain and cryptography | 2 | 2 | 1 | 1 | 1 |
-| **Total (64 rows)** | **26** | **25** | **9** | **2** | **2** |
+| **Total (64 rows)** | **27** | **25** | **9** | **1** | **2** |
 
 ## 1. Security documentation and incidents
 
@@ -92,7 +92,7 @@ Counted by row. Some rows cover two closely related controls, so the 64 rows bel
 |---|---|---|---|---|
 | ISM-2142 | Application credentials centrally managed in a secrets solution | Partial | Staging uses Fly.io secrets. On the workstation, `.env`, `cdp_api_key.json` and `cdp_wallet_secret.txt` sit as plain files in the repository folder (git-ignored). The policy signing key is a file in the home directory. | [deploy-staging.md 4](../deploy-staging.md), `.gitignore`, risk R04 |
 | ISM-1875 | Monthly scan for credentials stored in the clear | Partial | gitleaks covers the repository on every push; the workstation is not scanned. | `ci.yml` |
-| ISM-1173 | MFA for privileged users | To confirm | GitHub, Fly.io, Coinbase Developer Platform, Anthropic and Tenderly admin accounts. | Owner to confirm |
+| ISM-1173 | MFA for privileged users | Implemented | MFA is on for the GitHub, Fly.io, Coinbase Developer Platform, Anthropic and Tenderly accounts (owner confirmed 14 Oct 2026). | Owner confirmation |
 
 ## 6. Security monitoring and event logging
 
@@ -110,7 +110,7 @@ Counted by row. Some rows cover two closely related controls, so the 64 rows bel
 
 | Control | Requirement (short) | Status | How NAPG meets it | Evidence |
 |---|---|---|---|---|
-| ISM-1511, ISM-1811 | Backups performed, retained securely and resiliently | Partial | Source is in GitHub. The audit database is on a Fly.io volume; snapshot schedule and retention to confirm. | [dependency-register.md](../dependency-register.md) |
+| ISM-1511, ISM-1811 | Backups performed, retained securely and resiliently | Partial | Source is in GitHub. The audit database volume is snapshotted daily by Fly.io and each snapshot is kept for 5 days (owner confirmed 14 Oct 2026). The policy signing key and audit HMAC key on the workstation have no documented backup. | [dependency-register.md](../dependency-register.md) |
 | ISM-1515 | Backup restoration tested | Not implemented | No restore test recorded. | Risk R16 |
 | ISM-1452 | Supply chain risk assessment for suppliers | Implemented | Dependency register with owner, criticality, detection, exit plan and recovery time for each external service. | [dependency-register.md](../dependency-register.md) |
 | ISM-1139 | Only the latest TLS version used | Inherited | TLS terminated by Fly.io's edge for the frontend; outbound calls use the HTTP client's defaults. Not verified against ISM TLS settings. | - |
