@@ -42,10 +42,11 @@ Rating bands: **Low** 1 to 4 · **Medium** 5 to 9 · **High** 10 to 16 · **Extr
 | R16 | Backups of the audit database have never been restored in a test, so recovery after volume loss is unproven. | 2 | 3 | Medium | Fly.io volume snapshots (schedule to confirm); HMAC verification after restore | **Treat.** Restore a snapshot to a scratch volume, run `napg audit verify`, and record the result. | Open | Yes |
 | R17 | Eight known dependency advisories are allow-listed in CI because an upstream SDK pins vulnerable versions, two with no fix released. | 3 | 2 | Medium | Each advisory documented in `ci.yml` with its reason; re-checked on every SDK release | **Accept** with review at every upstream SDK bump; record the review date. | Accepted | Yes |
 | R18 | Rate limiting trusts the `X-Forwarded-For` header, so an attacker could spoof addresses to dodge per-IP limits in production. | 3 | 1 | Low | Rate limit per route; no fund authority behind those routes | **Accept for testnet**; pin a trusted-proxy header in Phase 5 (Phase 3 threat model). | Accepted (testnet) | Yes |
+| R19 | The operator workstation does not update macOS or the browser automatically, and there is no separate administrator account. This is the machine that holds the signing keys and secrets (R04, R05), so an unpatched exploit there exposes everything. | 3 | 3 | Medium | MFA on every service account; testnet-only funds; keys outside the repository | **Treat now.** Turn on automatic macOS and browser updates; use a standard account for daily work. | Open | Yes |
 
 ## Priorities
 
-1. **Now:** R11 (Phase 4 threat model), R04 (move workstation secrets). R02 was treated on 14 October 2026.
+1. **Now:** R19 (turn on automatic updates), R11 (Phase 4 threat model), R04 (move workstation secrets). R02 was treated on 14 October 2026.
 2. **Before mainnet:** R01 decision, R03 external audit, R07 central logging, R10 incident response plan, R16 restore test.
 3. **Carried:** the accepted testnet risks are re-rated at the mainnet gate, where real funds raise the consequence scores.
 
