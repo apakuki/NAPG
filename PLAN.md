@@ -2,7 +2,7 @@
 
 NetAssure Protocol Guardian: autonomous Protocol Service Assurance agent for the Coinbase Base ecosystem. This document is the source-of-truth phased plan. Tick boxes as work lands. Update the architecture/library notes inline when reality drifts from the brief.
 
-Reference: [Building on Coinbase Base Ecosystem.pdf](Building on Coinbase Base Ecosystem.pdf), [CLAUDE.md](CLAUDE.md).
+Reference: [CLAUDE.md](CLAUDE.md), [docs/architecture.md](docs/architecture.md).
 
 ## Operating principles
 

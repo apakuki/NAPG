@@ -95,7 +95,14 @@ agent/                  Python 3.10+ agent core (uv toolchain)
     audit.py            append-only HMAC audit log
     redact.py           URL redaction (keys live in RPC URLs)
     scenarios.py        synthetic probe outputs for simulation
-    api.py              FastAPI read endpoint powering the dashboard
+    api.py              FastAPI read endpoint powering the dashboard + x402 endpoint
+    reporting.py        signed Assurance Reports (Ed25519, separate reporting key)
+    payments.py         x402 payment verification for paid reports (EIP-3009 USDC)
+    attribution.py      ERC-8021 Builder Code calldata suffix (the only builder)
+    guardian.py         Guardian Mode entitlements, read only from the audit log
+    execution.py        swap execution quality (quoted vs simulated vs realised)
+    treasury.py         treasury concentration limits and snapshots
+    override.py         break-glass emergency migration (human-approved)
     monitor/
       rpc.py            single-provider RPC heartbeat + reorg detection
       resilience.py     RateLimiter, CircuitBreaker, FailoverRpcHeartbeat
@@ -112,7 +119,8 @@ agent/                  Python 3.10+ agent core (uv toolchain)
         policy.py         Stage 2 — caps, allowlists, denylist, daily ceiling
         tenderly.py       Stage 3 — Tenderly simulation
         honeypot.py       Stage 4 — BUY-then-SELL honeypot probe (native: pass)
-  config/               signed runtime config (policy.toml, denylist.toml, ...)
+  config/               signed runtime config (policy.toml, denylist.toml, ...),
+                        breaches.toml, treasury.toml
   tests/                pytest suite mirroring the package layout
   pyproject.toml        deps, ruff, pytest (coverage gate 80%)
 
@@ -127,9 +135,14 @@ frontend/               Next.js 16 App Router + Tailwind 4 (npm)
 
 docs/
   architecture.md       this file
+  assurance/            system security plan, ISM control mapping, risk register,
+                        Essential Eight self-assessment
+  design/               design notes (Phase 4 MEV exposure)
   manual-tests/         per-phase manual test scripts
   threat-models/        per-phase threat models
-  runbooks/             operational runbooks (branch protection, key acquisition)
+  runbooks/             operational runbooks (kill switch, key compromise, infra
+                        outage, emergency migration, branch protection)
+  treasury-policy.md    treasury risk appetite and limits
   deploy-staging.md     Fly.io two-app deploy notes
 
 scripts/                start.sh / stop.sh (run agent + frontend together)
@@ -221,8 +234,10 @@ suspicious, not less — the safe failure direction. A `Breach` is fully JSON-sa
 ### 4.4 Reasoning — `reasoning.py`
 
 [`Reasoner.decide(inputs)`](../agent/napg/reasoning.py) calls the Anthropic SDK
-directly (no LangChain, despite the spec table — a locked tech decision). Key
-properties:
+directly (no LangChain, despite the spec table — a locked tech decision). The
+reasoner defaults to Claude Opus (`NAPG_REASONER_MODEL`); the AgentShield Intent
+Judge deliberately runs on a different model (Claude Haiku,
+`NAPG_INTENT_JUDGE_MODEL`). Key properties:
 
 - **Structured output via tool-use.** The model is forced to call a single
   `submit_decision` tool with `intent`, `rationale`, `confidence`, and
@@ -293,7 +308,11 @@ through `record(kind, payload)` (schema-agnostic beyond JSON-serialisability) or
 them back. `napg audit verify` recomputes every HMAC and reports tampered row ids.
 
 The set of row kinds is open: today `scenario`, `breach`, `decision`,
-`validation`, `action`. Add a kind by writing through `record()`.
+`validation`, `action`, plus the Phase 4 kinds `report`, `payment`,
+`entitlement` and `migration_override_armed`. Add a kind by writing through
+`record()`. Several Phase 4 features use the log as their source of truth: x402
+replay protection (the log is the nonce store), Guardian Mode entitlements, and
+the reports themselves, which can only cite breaches the log holds.
 
 ### 4.8 AgentShield — `agentshield/`
 
@@ -325,13 +344,15 @@ The four live stages:
    A *second, independent* Anthropic call (its own prompt + `submit_verdict`
    tool) that reviews the proposed action against its rationale and returns
    `agree` / `disagree` / `abstain`. Only `agree` passes — abstain is fail-closed,
-   because uncertainty is not consent. Being a separate call means a
-   prompt-injection on the reasoner does not also poison the judge.
+   because uncertainty is not consent. Being a separate call on a different
+   model means a prompt-injection on the reasoner does not also poison the judge.
 
 2. **Policy** ([`stages/policy.py`](../agent/napg/agentshield/stages/policy.py)).
    Five checks in order: denylist, allowlist (when non-empty), per-tx value cap,
-   calldata must be empty (native transfer only until ERC-20 decoding lands),
-   and a rolling 24h daily-spend ceiling. This is the only stage that reads the
+   calldata must be empty (native transfer only until ERC-20 decoding lands; the
+   one exception is exactly the ERC-8021 Builder Code suffix), and a rolling 24h
+   daily-spend ceiling. Swap intents must also carry `min_out_wei` and
+   `quoted_out_wei` and stay within `max_slippage_bps` (default 50). This is the only stage that reads the
    audit log — it sums non-dry-run `action` rows in the trailing 24h for the
    daily ceiling.
 
@@ -378,6 +399,11 @@ Anthropic) so the library code stays I/O-free:
   orchestrator cycle. This is the Phase 1 milestone path: agent detects a
   simulated sequencer delay and (with `--execute`) migrates testnet funds.
 - `policy generate-key | sign | verify` — Ed25519 config signing.
+- `report generate-key | verify` — Assurance Report signing key and signature
+  check.
+- `override arm --approver --justification` then `override execute
+  --amount-eth X [--execute]` — the two-step, human-approved emergency
+  migration (see 4.11).
 - `serve [--host --port]` — run the FastAPI read endpoint via uvicorn.
 
 ### 4.10 The read API — `api.py`
@@ -393,6 +419,47 @@ endpoints:
   partial-500s.
 - `GET /api/audit/breaches?limit=&source=` — most recent `breach` rows from the
   audit log, reshaped for the UI (HMAC dropped), optionally filtered by source.
+- `POST /api/x402/assurance-report` — paid Assurance Report. No payment header
+  returns HTTP 402 with x402 payment requirements; a valid payment returns the
+  signed report. Replays return 409; a retry with the same `Idempotency-Key`
+  returns the original report.
+
+### 4.11 Phase 4 additions
+
+Phase 4 (monetisation and attribution) added seven modules. Each follows the
+same rules as the core: injected dependencies, fail-closed checks, and audit
+rows for anything that matters later.
+
+- **Assurance Reports** ([`reporting.py`](../agent/napg/reporting.py)). A signed
+  statement of what NAPG observed for a protocol over a window. Signed with a
+  dedicated Ed25519 key (`NAPG_REPORTING_SIGNING_KEY`), a different curve from
+  the secp256k1 wallet, so a report signature can never be mistaken for a
+  transaction signature.
+- **x402 payments** ([`payments.py`](../agent/napg/payments.py)). Verifies an
+  EIP-3009 USDC `TransferWithAuthorization` (recipient, amount, expiry,
+  signature) before issuing a report. Named `payments`, not `x402`, so it does
+  not shadow the third-party `x402` package.
+- **Builder Code attribution** ([`attribution.py`](../agent/napg/attribution.py)).
+  The only module that builds the ERC-8021 calldata suffix; the code comes from
+  config, never user input. Stages 2 and 4 accept exactly this suffix and
+  nothing else.
+- **Guardian Mode** ([`guardian.py`](../agent/napg/guardian.py)). Subscription
+  entitlements keyed by Farcaster fid, decided only from `entitlement` rows in
+  the audit log, never from a client claim.
+- **Execution quality** ([`execution.py`](../agent/napg/execution.py)). Records
+  quoted, simulated and realised output for every swap, so loss inside the
+  slippage tolerance (for example a sandwich attack) becomes a recorded breach
+  instead of being invisible.
+- **Treasury limits** ([`treasury.py`](../agent/napg/treasury.py)). Turns
+  [treasury-policy.md](treasury-policy.md) into enforcement: per-protocol and
+  stablecoin concentration limits with `headroom_bps`, so a trend toward a
+  breach is visible across snapshots.
+- **Emergency override** ([`override.py`](../agent/napg/override.py)). If
+  Tenderly (Stage 3) is down, a correlated outage could block the rescue NAPG
+  exists to perform. The override replaces Stage 3 only, for `migrate_to_safe`
+  only: native transfer to the pinned safe address, within Stage 2 caps,
+  audited, and armed by a named human approver. All other stages still run. See
+  [runbooks/emergency-migration.md](runbooks/emergency-migration.md).
 
 Each upstream (Aerodrome, Morpho) gets its own module-level limiter+breaker so a
 flaky 0x does not trip the Morpho circuit. The API deliberately adds no CORS
@@ -574,5 +641,10 @@ from `proxy.ts`. Add a Playwright spec under `e2e/` for the navigation path.
   exercise the live system.
 - [docs/deploy-staging.md](deploy-staging.md) — the Fly.io two-app deploy (private
   agent + public frontend), including the IPv6 6PN bind gotcha.
+- [docs/assurance/](assurance/) — the security assurance package: system
+  security plan, ISM control mapping, risk register and Essential Eight
+  self-assessment.
+- [docs/treasury-policy.md](treasury-policy.md) — treasury risk appetite behind
+  `treasury.py`.
 </content>
 </invoke>
