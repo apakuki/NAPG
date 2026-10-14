@@ -16,8 +16,8 @@ Where a requirement depends on settings that cannot be seen from the repository,
 
 | Strategy | Current maturity | Main gap to ML1 |
 |---|---|---|
-| Patch applications | ML0 | Known advisories accepted beyond the ML1 timeframes; workstation browser not updated automatically |
-| Patch operating systems | ML0 | macOS not updated automatically; Fly.io image rebuild cadence to confirm |
+| Patch applications | ML0 | Known advisories accepted beyond the ML1 timeframes; dependency scans not run daily |
+| Patch operating systems | To confirm | Workstation met (automatic macOS updates on since 14 Oct 2026); Fly.io image rebuild cadence to confirm |
 | Multi-factor authentication | ML1 | Met. Moving to phishing-resistant passkeys would support higher levels |
 | Restrict administrative privileges | ML0 | One account used for both daily work and administration |
 | Application control | ML0 | No application control on the workstation |
@@ -36,19 +36,20 @@ The honest summary: NAPG's application-level security is strong, but the Essenti
 | ISM-1807, ISM-1808: automated asset discovery and an up-to-date vulnerability scanner | Partial | Dependabot, pip-audit and npm audit cover application dependencies; there is no scanner for the workstation. |
 | ISM-1698: scan online services daily | Partial | Dependency scans run on every push, not on a daily schedule. |
 | ISM-1876, ISM-1690: patch online services within 48 hours (critical or exploited) or two weeks | Not met | Eight advisories are allow-listed because an upstream SDK pins vulnerable versions (risk R17). Accepting known vulnerabilities beyond these timeframes does not meet ML1, even with a documented reason. |
-| ISM-1691, ISM-1704: patch browsers and other workstation applications within two weeks; remove unsupported ones | Not met | Browser updates are not automatic and manual updates are not tracked (owner confirmed 14 Oct 2026). |
+| ISM-1691: patch browsers and other workstation applications within two weeks | Met | Since 14 Oct 2026: Chrome updates itself through Google Updater (155.0.8059.80, checked that day); Safari 27.0 updates with macOS, which installs updates automatically. |
+| ISM-1704: remove unsupported workstation applications | To confirm | No inventory of installed applications has been reviewed. |
 
-**To reach ML1:** add a daily scheduled run of the dependency audit; track each allow-listed advisory with a review date; turn on automatic browser and application updates.
+**To reach ML1:** add a daily scheduled run of the dependency audit; track each allow-listed advisory with a review date; review the workstation's installed applications and remove unsupported ones.
 
 ### Patch operating systems
 
 | ML1 requirement | Status | Notes |
 |---|---|---|
 | ISM-1877, ISM-1694: patch internet-facing server operating systems within 48 hours (critical or exploited) or two weeks | To confirm | The Fly.io apps run on container base images defined in the Dockerfiles; they are patched only when the image is rebuilt and redeployed. |
-| ISM-1695: patch workstation operating systems within one month | Not met | macOS updates are not installed automatically. On 14 Oct 2026 the workstation ran macOS 15.5 with security update 15.8.1 available, more than a year behind. |
-| ISM-1501: replace unsupported operating systems | To confirm | macOS version support status. |
+| ISM-1695: patch workstation operating systems within one month | Met | On 14 Oct 2026 the workstation was updated from macOS 15.5 to 15.8.1, and automatic installation of macOS updates, security responses and system data files was turned on (checked with `softwareupdate --schedule` and the `com.apple.SoftwareUpdate` preferences). |
+| ISM-1501: replace unsupported operating systems | Met | macOS 15 still receives Apple security updates (15.8.1). The optional upgrade to macOS 27 is available; plan it before macOS 15 leaves support. |
 
-**To reach ML1:** rebuild and redeploy both images at least fortnightly (or on a base-image security release); turn on macOS automatic updates, including security responses and system files.
+**To reach ML1:** rebuild and redeploy both images at least fortnightly (or on a base-image security release).
 
 ### Multi-factor authentication
 
@@ -105,7 +106,7 @@ Not applicable. No Microsoft Office applications are used in the system boundary
 In order of effort:
 
 1. Done: MFA on every service account (MFA).
-2. Turn on automatic macOS and browser updates (patch operating systems, patch applications).
+2. Done: automatic macOS and browser updates, 14 Oct 2026 (patch operating systems, patch applications).
 3. Back up the signing and HMAC keys offline, and test a restore of the audit database (backups).
 4. Schedule a daily dependency audit and a fortnightly image rebuild (patching).
 5. Split daily and administrator accounts on the workstation (restrict administrative privileges).

@@ -43,4 +43,4 @@ Some controls depend on account settings that cannot be read from the repository
 - Browser settings for Java and web advertisements on the operator workstation.
 - Fly.io base image rebuild cadence.
 
-Confirmed by the owner on 14 October 2026: MFA is on for every service account; there is no separate macOS administrator account; macOS and browser updates are not automatic; Fly.io snapshots the audit database volume daily with 5-day retention.
+Confirmed by the owner on 14 October 2026: MFA is on for every service account; there is no separate macOS administrator account; macOS and browser updates were not automatic (the workstation was then updated to macOS 15.8.1 and automatic updates were turned on the same day); Fly.io snapshots the audit database volume daily with 5-day retention.
