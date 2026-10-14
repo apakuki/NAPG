@@ -23,7 +23,7 @@ Where a requirement depends on settings that cannot be seen from the repository,
 | Application control | ML0 | No application control on the workstation |
 | Restrict Microsoft Office macros | N/A | No Microsoft Office in scope |
 | User application hardening | To confirm | Browser settings on the workstation |
-| Regular backups | ML0 | Restore never tested; snapshot schedule to confirm |
+| Regular backups | ML0 | Restore never tested; signing keys not backed up |
 
 The honest summary: NAPG's application-level security is strong, but the Essential Eight measures the environment around it, and that environment is a single person's laptop and accounts. Most of the work to reach ML1 is account and workstation configuration, not code.
 
@@ -45,7 +45,7 @@ The honest summary: NAPG's application-level security is strong, but the Essenti
 | ML1 requirement | Status | Notes |
 |---|---|---|
 | ISM-1877, ISM-1694: patch internet-facing server operating systems within 48 hours (critical or exploited) or two weeks | To confirm | The Fly.io apps run on container base images defined in the Dockerfiles; they are patched only when the image is rebuilt and redeployed. |
-| ISM-1695: patch workstation operating systems within one month | Not met | macOS updates are not automatic and manual updates are not tracked (owner confirmed 14 Oct 2026). |
+| ISM-1695: patch workstation operating systems within one month | Not met | macOS updates are not installed automatically. On 14 Oct 2026 the workstation ran macOS 15.5 with security update 15.8.1 available, more than a year behind. |
 | ISM-1501: replace unsupported operating systems | To confirm | macOS version support status. |
 
 **To reach ML1:** rebuild and redeploy both images at least fortnightly (or on a base-image security release); turn on macOS automatic updates, including security responses and system files.
@@ -94,11 +94,11 @@ Not applicable. No Microsoft Office applications are used in the system boundary
 
 | ML1 requirement | Status | Notes |
 |---|---|---|
-| ISM-1511, ISM-1810, ISM-1811: backups performed, synchronised and retained securely | Partial | Source is in GitHub; the audit database is on a Fly.io volume with snapshots (schedule and retention to confirm). The signing keys on the workstation have no documented backup. |
+| ISM-1511, ISM-1810, ISM-1811: backups performed, synchronised and retained securely | Partial | Source is in GitHub; the audit database volume is snapshotted daily and kept for 5 days (owner confirmed 14 Oct 2026). The signing keys on the workstation have no documented backup. |
 | ISM-1812, ISM-1814: unprivileged accounts cannot read, change or delete backups | To confirm | Depends on Fly.io account access. |
 | ISM-1515: restoration tested | Not met | Never tested (risk R16). |
 
-**To reach ML1:** confirm the snapshot schedule; back up the policy signing key and audit HMAC key to an encrypted, offline location; restore a snapshot and run `napg audit verify` once, then once a year.
+**To reach ML1:** back up the policy signing key and audit HMAC key to an encrypted, offline location; restore a snapshot and run `napg audit verify` once, then once a year.
 
 ## Path to Maturity Level One
 

@@ -110,7 +110,7 @@ Counted by row. Some rows cover two closely related controls, so the 64 rows bel
 
 | Control | Requirement (short) | Status | How NAPG meets it | Evidence |
 |---|---|---|---|---|
-| ISM-1511, ISM-1811 | Backups performed, retained securely and resiliently | Partial | Source is in GitHub. The audit database is on a Fly.io volume; snapshot schedule and retention to confirm. | [dependency-register.md](../dependency-register.md) |
+| ISM-1511, ISM-1811 | Backups performed, retained securely and resiliently | Partial | Source is in GitHub. The audit database volume is snapshotted daily by Fly.io and each snapshot is kept for 5 days (owner confirmed 14 Oct 2026). The policy signing key and audit HMAC key on the workstation have no documented backup. | [dependency-register.md](../dependency-register.md) |
 | ISM-1515 | Backup restoration tested | Not implemented | No restore test recorded. | Risk R16 |
 | ISM-1452 | Supply chain risk assessment for suppliers | Implemented | Dependency register with owner, criticality, detection, exit plan and recovery time for each external service. | [dependency-register.md](../dependency-register.md) |
 | ISM-1139 | Only the latest TLS version used | Inherited | TLS terminated by Fly.io's edge for the frontend; outbound calls use the HTTP client's defaults. Not verified against ISM TLS settings. | - |
