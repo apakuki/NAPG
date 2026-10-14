@@ -1,13 +1,12 @@
 # Branch protection on `main`
 
-Status: **not currently enabled — solo-dev mode.** A protection ruleset
-was briefly active on `main` (enabled 2026-06-02 via GitHub Pro) and then
-removed when the project returned to a single maintainer. With one
-person on the repo, a required-review gate is unsatisfiable (you cannot
-approve your own PR), so `main` is back to direct push and workstation
-hygiene is the active control, consistent with the Phase 0 accepted
-risk. The steps below are retained so protection can be re-enabled
-quickly if another collaborator ever joins.
+Status: **enabled 2026-10-14, solo-maintainer mode.** The ruleset
+`protect-main` (id 25050072) was re-applied when the repository was found
+to be public, which is one of the Phase 0 re-enable triggers. It requires
+a pull request and the three CI checks, blocks force-pushes and branch
+deletion, and has no bypass actors. Required approvals are set to `0`
+because a sole maintainer cannot approve their own pull request; raise it
+to `1` when a collaborator joins (see "Operational caveat" below).
 
 ## Why a ruleset and not classic branch protection
 
@@ -33,8 +32,9 @@ The payload (`main-protection-ruleset.json`) enforces, on the default
 branch (`~DEFAULT_BRANCH` = `main`):
 
 - **No direct push** — changes must land via pull request.
-- **>=1 approving review** before merge, stale approvals dismissed on a
-  new push.
+- **0 required approving reviews** (solo mode). Set
+  `required_approving_review_count` to `1` and
+  `dismiss_stale_reviews_on_push` to `true` when a collaborator joins.
 - **Required status checks** (branch must be up to date first):
   `agent (python)`, `frontend (next.js)`, `security scans` — the three
   jobs from `.github/workflows/ci.yml`.
