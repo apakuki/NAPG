@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 NAPG is an autonomous AI agent providing Network Operations Center (NOC) level **Protocol Service Assurance** for decentralized protocols on the Coinbase Base ecosystem (Ethereum L2, OP Stack). It heartbeats RPC nodes, monitors sequencer latency and liquidity-pool health, detects "Service Level Breaches" (peg drops, transaction-revert spikes, honeypot signatures), and can autonomously migrate funds to a pre-defined safe state.
 
-Positioning: the reliability layer the Base ecosystem currently lacks — institutional-grade DeFi assurance built with federal-grade security rigor. See [Building on Coinbase Base Ecosystem.pdf](Building on Coinbase Base Ecosystem.pdf) for the authoritative brief.
+Positioning: the reliability layer the Base ecosystem currently lacks — institutional-grade DeFi assurance built with federal-grade security rigor. See [Project Brief - Building on Coinbase Base Ecosystem.pdf](Project%20Brief%20-%20Building%20on%20Coinbase%20Base%20Ecosystem.pdf) for the founding brief (the project's genesis, written as the CLARITY Act advanced in May 2026) and [docs/architecture.md](docs/architecture.md) for how the system is actually built and why.
 
 ## Builder profile
 
